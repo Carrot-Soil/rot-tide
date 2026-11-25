@@ -46,15 +46,20 @@
     white-space:nowrap; max-width:72%; overflow:hidden; text-overflow:ellipsis;
     pointer-events:none; z-index:3;
   }
-  /* 底部单位信息条（大）：常驻，鼠标停在哪个格子就显示哪一格的东西 */
+  /* 底部单位信息条：只在鼠标停在地图上时出现，居中、收窄 */
   #hoverbar{
-    position:absolute; left:12px; right:12px; bottom:10px;
+    position:absolute; left:50%; bottom:10px;
+    width:min(760px, calc(100% - 48px));
+    transform:translateX(-50%) translateY(6px);
+    opacity:0; visibility:hidden;
+    transition:opacity .16s, transform .16s, visibility .16s;
     background:linear-gradient(180deg,rgba(17,24,34,.97),rgba(10,15,21,.97));
     border:1px solid #2b3a4d; border-radius:11px;
     padding:9px 16px 10px; z-index:3; pointer-events:none;
     box-shadow:0 14px 36px -14px #000, 0 0 0 1px rgba(94,203,232,.08) inset;
     overflow:hidden;
   }
+  #hoverbar.on{opacity:1; visibility:visible; transform:translateX(-50%)}
   #hoverbar.idle .hb-name{color:#7c8a9c !important; font-size:15px; font-weight:700}
   .hb-top{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
   .hb-name{font-size:19px; font-weight:800; letter-spacing:.04em}
@@ -128,6 +133,12 @@
   .bar i{display:block; height:100%; border-radius:3px; transition:width .2s}
   .row{display:flex; justify-content:space-between; align-items:center; gap:8px}
   .tag{font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums}
+  /* 战斗数值统一配色：生命绿 / 攻击红 / 射程青 / 视野紫；升级后的数值用黄色 */
+  .st-hp{color:#8ef0bb !important}
+  .st-atk{color:#ff7a7a !important}
+  .st-rng{color:#5ecbe8 !important}
+  .st-sight{color:#c9a0ff !important}
+  .st-up{color:#ffd166 !important}
   .name{font-size:14px; font-weight:700}
   button{
     font:inherit; color:var(--ink); background:#1a2331; border:1px solid #2a3547;
@@ -188,6 +199,8 @@
   .lib .opt.no{opacity:.62}
   .lib .opt b{font-size:13px; margin-bottom:2px}
   .lib .opt small{font-size:10.5px; line-height:1.45}
+  /* 卡片正文里的数值 <b> 必须保持行内，别被 .opt b 的标题规则撑成块级 */
+  .opt small b{display:inline !important; margin:0 !important; font-size:inherit !important; font-weight:700}
   .seedin{
     width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--line);
     background:#0b0f15; color:var(--ink); font:inherit; font-variant-numeric:tabular-nums;
@@ -318,6 +331,94 @@
     will-change:transform, opacity;
   }
   #tutBox.on{display:block}
+  /* 教程鼠标引导：从提示栏边缘拉一条流动虚线到目标，目标处套呼吸圈 */
+  #tutGuide{
+    position:fixed; inset:0; width:100%; height:100%; z-index:49;
+    pointer-events:none; display:none; overflow:visible;
+  }
+  #tutGuide.on{display:block}
+  #tgLine{
+    stroke:#ffd166; stroke-width:2; fill:none; stroke-linecap:round;
+    stroke-dasharray:7 6; filter:drop-shadow(0 0 4px rgba(255,209,102,.55));
+    animation:tgFlow .9s linear infinite;
+  }
+  #tgPulse{
+    fill:none; stroke:#ffd166; stroke-width:2.2;
+    transform-box:fill-box; transform-origin:center;
+    animation:tgPulse 1.6s ease-in-out infinite;
+  }
+  #tgCore{fill:#ffd166; opacity:.95}
+  #tgLabel{
+    fill:#ffd166; font-size:13px; font-weight:800; text-anchor:middle;
+    paint-order:stroke; stroke:#1a1206; stroke-width:3px; stroke-linejoin:round;
+    pointer-events:none;
+  }
+  /* 获得感染物：居中信息框 */
+  #relicIntro{
+    position:fixed; inset:0; z-index:70; display:none;
+    align-items:center; justify-content:center; padding:22px;
+    background:rgba(3,6,10,.76); backdrop-filter:blur(3px);
+  }
+  #relicIntro.on{display:flex}
+  .ri-card{
+    position:relative; width:min(430px,100%); max-height:calc(100vh - 44px);
+    overflow:auto; padding:24px 24px 14px; border-radius:18px;
+    border:1px solid rgba(255,209,102,.28);
+    background:linear-gradient(160deg,#181e2a,#0a0f16 68%);
+    box-shadow:0 30px 80px -24px #000, 0 0 0 1px rgba(255,255,255,.04) inset;
+    animation:riIn .2s ease-out;
+  }
+  @keyframes riIn{
+    from{transform:translateY(8px) scale(.95); opacity:0}
+    to{transform:none; opacity:1}
+  }
+  .ri-top{display:flex; align-items:center; gap:16px}
+  .ri-icon{
+    width:78px; height:78px; flex:none; border-radius:18px;
+    border:1px solid var(--rc, #9aa7b8);
+    background:#101620;
+    background:radial-gradient(circle at 35% 30%,
+      color-mix(in srgb, var(--c, #ffd166) 55%, #0b1017), #0b1017 72%);
+    box-shadow:0 0 22px color-mix(in srgb, var(--rc, #9aa7b8) 30%, transparent),
+               0 0 0 1px color-mix(in srgb, var(--c, #ffd166) 20%, transparent) inset;
+    position:relative; display:grid; place-items:center;
+  }
+  .ri-icon b{
+    font-size:30px; font-weight:900; color:#fff;
+    text-shadow:0 2px 10px #000, 0 0 18px var(--c, #ffd166);
+  }
+  .ri-icon span{
+    position:absolute; right:6px; bottom:4px; font-size:10px; font-weight:800;
+    color:var(--rc, #9aa7b8); opacity:.9;
+  }
+  .ri-head{min-width:0}
+  .ri-rarity{
+    font-size:10.5px; letter-spacing:.18em; color:var(--rc, #9aa7b8);
+    text-transform:uppercase;
+  }
+  .ri-name{
+    font-size:25px; line-height:1.2; margin:4px 0 0;
+    color:#fff3dc; letter-spacing:.04em;
+  }
+  .ri-desc{
+    margin:16px 0 0; font-size:13px; line-height:1.65; color:#c9d3e0;
+  }
+  .ri-effects{display:flex; flex-wrap:wrap; gap:7px; margin-top:12px}
+  .ri-fx{
+    padding:5px 9px; border-radius:7px; font-size:12px; line-height:1.3;
+    border:1px solid rgba(255,209,102,.28); background:rgba(255,209,102,.08);
+    color:#ffe2a8;
+  }
+  .ri-close{
+    margin-top:20px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07);
+    text-align:center; font-size:11.5px; color:#8b98aa; letter-spacing:.06em;
+  }
+  @keyframes tgFlow{to{stroke-dashoffset:-26}}
+  @keyframes tgPulse{
+    0%{transform:scale(.82); opacity:.95}
+    50%{transform:scale(1.18); opacity:.5}
+    100%{transform:scale(.82); opacity:.95}
+  }
   #tutBox.docked{
     left:12px; right:auto; margin-left:0; width:252px;
     top:12px; bottom:auto; padding:9px 11px 10px;
@@ -341,6 +442,80 @@
     transition:background .15s, border-color .15s;
   }
   .tbok:hover{background:#48330f; border-color:#a67a34}
+  /* 教程提示：只在玩家主动点「提示」或刚进一课时短暂出现 */
+  .tbhint{
+    flex:none; padding:10px 15px; font-size:13px; border-radius:9px;
+    border:1px solid #5c451f; background:#241a0c; color:#d9b273;
+    cursor:pointer; transition:background .15s, border-color .15s;
+  }
+  .tbhint:hover{background:#33240f; border-color:#8a662d}
+  .tbm .tbhint{
+    width:100%; margin-top:6px; padding:5px 6px; font-size:11.5px; border-radius:7px;
+  }
+  /* 教程第 3 / 4 课：尸茧面板里高亮「孵化」或「升级」卡片 */
+  .opt.tut-focus{
+    position:relative; border-color:#ffd166;
+    animation:tutFocusPulse 1.35s ease-in-out infinite;
+  }
+  @keyframes tutFocusPulse{
+    0%,100%{
+      border-color:#ffd166;
+      box-shadow:0 0 0 1px rgba(255,209,102,.6), 0 0 14px rgba(255,209,102,.18);
+    }
+    50%{
+      border-color:#ffe7a3;
+      box-shadow:0 0 0 4px rgba(255,209,102,.85), 0 0 30px rgba(255,209,102,.55);
+    }
+  }
+  .tut-focus-tip{
+    display:inline-flex; align-items:center; gap:4px;
+    padding:3px 11px; margin:0 0 7px; border-radius:11px;
+    background:#ffd166; color:#2a1d08;
+    border:1px solid #fff0bd;
+    font-size:11.5px; font-weight:900; letter-spacing:.04em;
+    box-shadow:0 2px 8px rgba(0,0,0,.45);
+    transform-origin:left center; will-change:transform, box-shadow;
+    animation:tutTipBreathe 1.35s ease-in-out infinite;
+  }
+  @keyframes tutTipBreathe{
+    0%,100%{
+      transform:scale(1);
+      box-shadow:0 0 0 0 rgba(255,209,102,.5), 0 2px 8px rgba(0,0,0,.45);
+    }
+    50%{
+      transform:scale(1.08);
+      box-shadow:0 0 0 7px rgba(255,209,102,.16), 0 4px 18px rgba(255,209,102,.6);
+    }
+  }
+  .grp.tut-locked{opacity:.38; filter:grayscale(.5); pointer-events:none}
+  /* 教程第 5 课：母巢技能「发动」按钮的呼吸提示 */
+  .tut-breathe{
+    position:relative; z-index:2;
+    border-color:#ffd166 !important;
+    transform-origin:center; will-change:transform, box-shadow;
+    animation:tutBtnGlow 1.35s ease-in-out infinite;
+  }
+  .tut-breathe::after{
+    content:""; position:absolute; inset:-3px; border-radius:inherit;
+    border:1px solid rgba(255,209,102,.7); pointer-events:none;
+    animation:tutBtnRing 1.35s ease-out infinite;
+  }
+  @keyframes tutBtnGlow{
+    0%,100%{
+      transform:scale(1);
+      box-shadow:0 0 0 1px rgba(255,209,102,.4), 0 0 0 rgba(255,209,102,0);
+    }
+    50%{
+      transform:scale(1.06);
+      box-shadow:0 0 0 4px rgba(255,209,102,.3), 0 0 18px rgba(255,209,102,.65);
+      filter:brightness(1.2);
+    }
+  }
+  @keyframes tutBtnRing{
+    0%{transform:scale(1); opacity:.85}
+    70%{transform:scale(1.16); opacity:0}
+    100%{opacity:0}
+  }
   /* 迷你版：左上角任务框 */
   .tbm{display:none}
   #tutBox.docked .tbw{display:none}
@@ -467,13 +642,13 @@
     #hint.show{opacity:1}
     #zoombar{display:none}
     #hoverbar{
-      left:calc(8px + env(safe-area-inset-left));
-      right:calc(8px + env(safe-area-inset-right));
+      left:50%;
+      width:min(560px, calc(100% - 16px));
       bottom:calc(70px + env(safe-area-inset-bottom));
       padding:7px 10px 8px; border-radius:10px;
-      opacity:0; transform:translateY(10px); transition:opacity .16s, transform .16s;
+      transform:translateX(-50%) translateY(10px);
     }
-    #hoverbar.show{opacity:1; transform:none}
+    #hoverbar.on{transform:translateX(-50%)}
     .hb-name{font-size:15px}
     .hb-sub{font-size:11px}
     .hb-stats{font-size:12.5px; gap:10px; margin-top:4px}
@@ -563,6 +738,7 @@
           <div class="tbg" id="tbG"></div>
           <div class="tbh" id="tbH"></div>
         </div>
+        <button class="tbhint" id="tbHint">提示</button>
         <button class="tbok" id="tbOk">确定</button>
       </div>
       <div class="tbm">
@@ -570,6 +746,7 @@
         <div class="tbn" id="tmN"></div>
         <div class="tbg" id="tmG"></div>
         <button class="tbst" id="tmSt">进行中</button>
+        <button class="tbhint" id="tmHint">提示</button>
       </div>
     </div>
     <div id="zoombar">
@@ -600,6 +777,36 @@
 
 <div id="overlay"><div class="sheet" id="sheet"></div></div>
 
+<!-- 获得感染物：居中信息框（点框外关闭） -->
+<div id="relicIntro" aria-hidden="true">
+  <div class="ri-card" role="dialog" aria-modal="true" aria-labelledby="riName">
+    <div class="ri-top">
+      <div class="ri-icon" id="riIcon"><b id="riTag"></b><span id="riNum"></span></div>
+      <div class="ri-head">
+        <div class="ri-rarity" id="riRarity"></div>
+        <h2 class="ri-name" id="riName"></h2>
+      </div>
+    </div>
+    <div class="ri-desc" id="riDesc"></div>
+    <div class="ri-effects" id="riEffects"></div>
+    <div class="ri-close">点击框外空白处关闭</div>
+  </div>
+</div>
+
+<!-- 教程引导线 / 目标圈（由 updateTutGuide 定位） -->
+<svg id="tutGuide" aria-hidden="true">
+  <defs>
+    <marker id="tgArrow" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5"
+            orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#ffd166"></path>
+    </marker>
+  </defs>
+  <line id="tgLine" x1="0" y1="0" x2="0" y2="0" marker-end="url(#tgArrow)"></line>
+  <circle id="tgPulse" cx="0" cy="0" r="20"></circle>
+  <circle id="tgCore" cx="0" cy="0" r="3.5"></circle>
+  <text id="tgLabel" x="0" y="0"></text>
+</svg>
+
 <!-- 手机版：顶栏 / 底部操作栏 / 抽屉遮罩（桌面端由 CSS 隐藏） -->
 <div id="mscrim"></div>
 <header id="mtop">
@@ -621,7 +828,7 @@
 </nav>
 
 <!-- 游戏规则全部在这一个文件里，纯浏览器运行，不需要服务器 -->
-<script src="engine.js"></script>
+<script src="engine.js?v=0.9.13"></script>
 <script>
 "use strict";
 /* ══════════════════════════════════════════════════════════════
@@ -795,9 +1002,16 @@ let hoverBarTimer = 0;
 function showHoverBar() {
   const b = document.getElementById("hoverbar");
   if (!b) return;
-  b.classList.add("show");
+  b.classList.add("on");
   clearTimeout(hoverBarTimer);
-  hoverBarTimer = setTimeout(() => b.classList.remove("show"), 4500);
+  // 手机上点一下露 4.5 秒；桌面靠 canvas 的 mouseenter/mouseleave 控制
+  if (isMobile()) hoverBarTimer = setTimeout(() => b.classList.remove("on"), 4500);
+}
+function hideHoverBar() {
+  const b = document.getElementById("hoverbar");
+  if (!b) return;
+  b.classList.remove("on");
+  clearTimeout(hoverBarTimer);
 }
 
 // ── 画布尺寸 / 相机 ─────────────────────────────────
@@ -874,6 +1088,7 @@ let anims = [];
 let clock = 0;
 let rafId = null;
 let lastTs = 0;
+let lastPulseDraw = 0;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const easeOut = p => 1 - Math.pow(1 - p, 3);
 const easeIn = p => p * p;
@@ -888,9 +1103,20 @@ function loop(ts) {
   clock += Math.min(0.05, (ts - lastTs) / 1000);   // 卡帧时钳制，避免动画跳跃
   lastTs = ts;
   if (anims.length) anims = anims.filter(a => clock < a.t0 + a.dur + 0.03);
+  if (anims.length) {
+    draw();
+    rafId = requestAnimationFrame(loop);
+    return;
+  }
+  // 有选中单位时保持低频重绘，白色选中圈才能呼吸闪烁
+  const pulsing = sel != null && S && byId(sel);
+  if (pulsing) {
+    if (ts - lastPulseDraw > 33) { lastPulseDraw = ts; draw(); }
+    rafId = requestAnimationFrame(loop);
+    return;
+  }
+  rafId = null;
   draw();
-  if (anims.length) rafId = requestAnimationFrame(loop);
-  else { rafId = null; draw(); }
 }
 // 静止时也低频重绘一次，保住尸茧的呼吸感
 setInterval(() => { if (!anims.length && rafId == null && S) draw(); }, 600);
@@ -1176,6 +1402,27 @@ function draw() {
     ctx.strokeRect(hoverCell[0] * TS + 1, hoverCell[1] * TS + 1, TS - 2, TS - 2);
   }
 
+  // 3.5 嗅探者扫描范围预览：跟着鼠标显示这次会揭开哪些格子
+  if (mode === "pick_scan" && hoverCell) {
+    const su2 = pickUnit ? byId(pickUnit) : null;
+    const lv = su2 ? (su2.lvl || 1) : 1;
+    const cells = ROT.scentCells(lv, hoverCell[0], hoverCell[1]);
+    ctx.fillStyle = "rgba(255,226,140,.14)";
+    ctx.strokeStyle = "rgba(255,226,140,.55)";
+    ctx.lineWidth = 1.2;
+    for (const [x, y] of cells) {
+      ctx.fillRect(x * TS + 1, y * TS + 1, TS - 2, TS - 2);
+      ctx.strokeRect(x * TS + 1.5, y * TS + 1.5, TS - 3, TS - 3);
+    }
+    const mx = hoverCell[0] * TS + TS / 2, my = hoverCell[1] * TS + TS / 2;
+    ctx.strokeStyle = "rgba(255,235,170,.9)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(mx - 6, my); ctx.lineTo(mx + 6, my);
+    ctx.moveTo(mx, my - 6); ctx.lineTo(mx, my + 6);
+    ctx.stroke();
+  }
+
   // 4. 尸茧
   for (const c of (S.cocoons || [])) {
     if (!S.seen[c.y][c.x]) continue;
@@ -1253,6 +1500,10 @@ function roundRectPath(x, y, w, h, r) {
 }
 
 /* 母巢：占 2×2 四格。四个小格是巢的四腔，中间是核心，等级贴在顶部 */
+function selPulse() {
+  return 0.5 + 0.5 * Math.sin(performance.now() / 260);   // 0~1 呼吸值
+}
+
 function drawMother(u, vx, vy, pop) {
   vx = vx == null ? u.x : vx;
   vy = vy == null ? u.y : vy;
@@ -1323,9 +1574,16 @@ function drawMother(u, vx, vy, pop) {
 
   // 选中 / 可攻击
   if (isSel) {
-    ctx.strokeStyle = "rgba(94,203,232,.95)";
-    ctx.lineWidth = 2.4;
-    roundRectPath(px + 1.5, py + 1.5, D - 3, D - 3, TS * 0.3);
+    const ph = selPulse();
+    const grow = ph * 2.2;
+    // 外层柔光 + 内层白圈，一起呼吸
+    ctx.strokeStyle = `rgba(255,255,255,${0.13 + 0.16 * ph})`;
+    ctx.lineWidth = 6.5;
+    roundRectPath(px + 1.5 - grow, py + 1.5 - grow, D - 3 + grow * 2, D - 3 + grow * 2, TS * 0.3);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${0.55 + 0.4 * ph})`;
+    ctx.lineWidth = 2.2 + 0.9 * ph;
+    roundRectPath(px + 1.5 - grow, py + 1.5 - grow, D - 3 + grow * 2, D - 3 + grow * 2, TS * 0.3);
     ctx.stroke();
   }
 
@@ -1379,9 +1637,14 @@ function drawUnit(u, vx, vy, pop) {
     ctx.beginPath(); ctx.arc(cx, cy, TS * 1.2, 0, Math.PI * 2); ctx.fill();
   }
   if (isSel) {
-    ctx.strokeStyle = "rgba(94,203,232,.95)";
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, r + 5, 0, Math.PI * 2); ctx.stroke();
+    const ph = selPulse();
+    const rr = r + 5 + ph * 3;
+    ctx.strokeStyle = `rgba(255,255,255,${0.13 + 0.17 * ph})`;
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${0.55 + 0.4 * ph})`;
+    ctx.lineWidth = 2.2 + 0.9 * ph;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
   }
   if (canHit) {
     ctx.strokeStyle = "rgba(255,90,90,.9)";
@@ -1656,7 +1919,7 @@ function renderMother() {
     <h4>母巢</h4>
     <div class="row"><span class="name">${m.name}
         <span class="lvlchip">Lv${lvl}</span></span>
-      <span class="tag">${m.hp}${m.shield > 0 ? " (+" + m.shield + "盾)" : ""} / ${m.max_hp}</span></div>
+      <span class="tag"><b class="st-hp">${m.hp}</b>${m.shield > 0 ? " (+" + m.shield + "盾)" : ""} / <b class="st-hp">${m.max_hp}</b></span></div>
     <div class="bar"><i style="width:${r * 100}%;background:${r > .5 ? "#b47cff" : r > .25 ? "#ffd166" : "#ff6b6b"}"></i></div>
     <div class="row" style="margin-top:5px">
       <span class="tag" style="font-size:11px">经验 ${m.exp || 0}/${m.exp_need || 0}</span>
@@ -1742,18 +2005,18 @@ function renderUnitCard() {
       <span class="uname">${u.name}</span>
       <span class="uid">#${u.uid}</span>
       ${isZ ? `<span class="lvlchip${u.lvl >= maxLvl ? " max" : ""}">Lv${u.lvl}</span>` : ""}
-      <span class="uhp">${u.hp}/${u.max_hp}${u.shield ? " · 盾" + u.shield : ""}</span>
+      <span class="uhp"><b class="st-hp">${u.hp}/${u.max_hp}</b>${u.shield ? " · 盾" + u.shield : ""}</span>
     </div>
     <div class="bar"><i style="width:${r * 100}%;background:${col}"></i></div>
     <div class="ustats">
-      <span>攻击 <b>${u.atk}</b></span>
-      <span>射程 <b>${u.rng}</b></span>
-      <span>视野 <b>${u.sight}</b></span>
+      <span>攻击 <b class="st-atk">${u.atk}</b></span>
+      <span>射程 <b class="st-rng">${u.rng}</b></span>
+      <span>视野 <b class="st-sight">${u.sight}</b></span>
       ${isZ ? `<span>本回合已动 <b>${u.acted}</b></span>` : ""}
     </div>
     ${u.atk <= 0 ? `<div class="unote" style="color:#ffb86b">它没有攻击力，作用是给母巢供能。</div>` : ""}
     ${u.aim > 0 && u.aim_uid ? `<div class="unote" style="color:#ff9f43">已锁定 ${(byId(u.aim_uid) || {}).name || "目标"}，下一回合开枪。</div>` : ""}
-    ${nextLv ? `<div class="unote" style="color:#ffd166">下一级：HP ${nextLv.hp} · 攻 ${nextLv.atk} · 射程 ${nextLv.rng}<br>（吞尸茧升级）</div>` : ""}
+    ${nextLv ? `<div class="unote">下一级：HP <b class="st-up">${nextLv.hp}</b> · 攻 <b class="st-up">${nextLv.atk}</b> · 射程 <b class="st-up">${nextLv.rng}</b> · 视野 <b class="st-up">${nextLv.sight}</b><br>（吞尸茧升级）</div>` : ""}
     ${t.skill && !u.mother ? `<div class="unote">技能：${t.skill}</div>
       <button class="sm" id="btnSkill" style="margin-top:8px;width:100%"
         ${!canSkill || u.skill_used ? "disabled" : ""}>
@@ -1779,7 +2042,7 @@ function renderRoster() {
       <span class="nm">${u.name}</span>
       ${u.mother ? "" : `<span class="lvlchip${u.lvl >= maxLvl ? " max" : ""}">Lv${u.lvl}</span>`}
       <span class="mini"><i style="width:${r * 100}%;background:${col}"></i></span>
-      <span class="tag">${u.hp}</span>
+      <span class="tag"><b class="st-hp">${u.hp}</b></span>
     </div>`;
   }).join("");
   el.querySelectorAll(".rm").forEach(n => {
@@ -1803,6 +2066,9 @@ function paint() {
   document.getElementById("btnEnd").disabled = !!S.over;
   if (hoverCell) updateHover(hoverCell);
   draw();
+  if (sel != null) startLoop();   // 让白色选中圈开始呼吸
+  updateTutGuide();               // 教程引导线跟着目标/选中状态走
+  updateMotherSkillHint();        // 第 5 课母巢技能按钮呼吸提示
 }
 
 /** 手机底栏的技能按钮：跟着当前选中的丧尸走 */
@@ -1848,7 +2114,9 @@ function onSkill(u) {
   }
   if (k === "scent") {
     mode = "pick_scan"; pickUnit = u.uid;
-    flash("点击地图任意位置：扫描该点周围 3 格"); draw();
+    const lv = u.lvl || 1;
+    flash(`点击地图选择扫描中心（Lv${lv} ${scentShapeName(lv)}）`);
+    draw();
   }
 }
 
@@ -1865,8 +2133,20 @@ function flash(msg) {
     if (isMobile()) h.classList.remove("show");
   }, 2800);
 }
+function scentShapeName(lv) {
+  const L = lv || 1;
+  return L >= 3 ? "5×5 25 格" : L === 2 ? "九宫格 9 格" : "十字 5 格";
+}
+
 function defaultHint() {
   const h = document.getElementById("hint");
+  if (mode === "pick_scan") {
+    const u = pickUnit ? byId(pickUnit) : null;
+    const lv = u ? (u.lvl || 1) : 1;
+    h.textContent = `嗅探者：点地图选择扫描中心（Lv${lv} ${scentShapeName(lv)}）`;
+    if (isMobile()) showHintOnce(6000);
+    return;
+  }
   if (isMobile()) {
     h.textContent = sel
       ? "点蓝格移动 · 点红圈敌人攻击 · 底栏技能 · 双指缩放"
@@ -1893,7 +2173,8 @@ function tally() {
   S.units.forEach(u => hp[u.uid] = u.hp);
   return { hp, inf: S.infected, allies: teamCount(), bio: S.biomass,
            ap: S.ap, turn: S.turn, over: S.over, result: S.result,
-           relics: (S.relics || []).length, mlvl: (S.mother && S.mother.lvl) || 1 };
+           relics: (S.relics || []).length, relicIds: (S.relics || []).slice(),
+           mlvl: (S.mother && S.mother.lvl) || 1 };
 }
 function playDiff(before, after) {
   if (!before) return;
@@ -1913,15 +2194,88 @@ function playDiff(before, after) {
   if (allyHurt && kills === 0) Snd.hurt();
   if (enemyHurt && kills === 0) Snd.hit();
   if (after.allies > before.allies && kills === 0) Snd.hatch();
-  if (after.relics > before.relics) { Snd.unlock(); flash("获得感染物！"); }
+  if (after.relics > before.relics) {
+    Snd.unlock();
+    flash("获得感染物！");
+    const had = new Set(before.relicIds || []);
+    const fresh = (S.relics || []).filter((id) => !had.has(id));
+    if (fresh.length) fresh.forEach(showRelicIntro);
+    else if ((S.relics || []).length) showRelicIntro(S.relics[S.relics.length - 1]);
+  }
   else if (after.mlvl > before.mlvl) Snd.reinforce();
   if (after.bio > before.bio && kills === 0) Snd.reinforce();
   if (after.turn > before.turn && !after.over) Snd.turn();
   if (after.over && !before.over) { after.result === "win" ? Snd.win() : Snd.lose(); }
 }
 
+// ── 获得感染物：居中信息框 ───────────────────────────
+const FX_TEXT = {
+  atk: (n) => `攻击 +${n}`,
+  hp: (n) => `生命上限 +${n}`,
+  sight: (n) => `视野 +${n}`,
+  rng: (n) => `射程 +${n}`,
+  apmax: (n) => `腐能上限 +${n}`,
+  leech: (n) => `击杀回复 ${n} 生命`,
+  cocoon: (n) => `尸茧留存 +${n} 回合`,
+  bio: (n) => `击杀额外生物质 +${n}`,
+  hatch: (n) => `孵化等级 +${n}`,
+  regen: (n) => `每回合回复 ${n} 生命`,
+  expk: (n) => `击杀额外经验 +${n}`,
+  ward: (n) => `每回合护盾 +${n}`,
+  pierce: () => "攻击无视掩体减伤",
+  splash: () => "近战溅射周围 1 格",
+  frenzy: (n) => `击杀返还 ${n} 腐能`,
+  mind: (n) => `母巢技能冷却 -${n} 回合`,
+  girth: (n) => `母巢生命上限 +${n}`,
+};
+let relicIntroQueue = [];
+let relicIntroShowing = false;
+
+function showRelicIntro(id) {
+  if (!S || !S.meta || !S.meta.relics) return;
+  const meta = S.meta.relics[id];
+  if (!meta) return;
+  if (relicIntroShowing) { relicIntroQueue.push(id); return; }
+  relicIntroShowing = true;
+
+  const root = document.getElementById("relicIntro");
+  const card = root.querySelector(".ri-card");
+  card.style.setProperty("--rc", meta.rarity_color || "#9aa7b8");
+  card.style.setProperty("--c", meta.color || "#ffd166");
+  document.getElementById("riTag").textContent = meta.tag || "?";
+  document.getElementById("riNum").textContent = (meta.r || 0) + 1;
+  document.getElementById("riRarity").textContent = `${meta.rarity || "感染物"} · 感染物`;
+  document.getElementById("riName").textContent = meta.name || id;
+  document.getElementById("riDesc").textContent = meta.desc || "";
+
+  const fx = meta.fx || {};
+  const keys = Object.keys(fx);
+  document.getElementById("riEffects").innerHTML = keys.map((k) => {
+    const txt = FX_TEXT[k] ? FX_TEXT[k](fx[k]) : `${k} +${fx[k]}`;
+    return `<span class="ri-fx">${txt}</span>`;
+  }).join("");
+
+  root.classList.add("on");
+  root.setAttribute("aria-hidden", "false");
+}
+
+function closeRelicIntro() {
+  const root = document.getElementById("relicIntro");
+  if (!relicIntroShowing) return;
+  root.classList.remove("on");
+  root.setAttribute("aria-hidden", "true");
+  relicIntroShowing = false;
+  const next = relicIntroQueue.shift();
+  if (next) setTimeout(() => showRelicIntro(next), 140);
+}
+
+document.getElementById("relicIntro").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) closeRelicIntro();
+});
+
 // ── 指令（本地引擎，无网络）────────────────────────────
 async function act(payload) {
+  hideTutGuide();          // 玩家已经在操作了，引导线先收起来；需要再点提示
   if (loading) { pending = payload; return; }     // 连按 WASD 不丢指令
   loading = true;
   const before = S ? tally() : null;
@@ -1947,6 +2301,7 @@ async function act(payload) {
     }
     // 层间随机事件：掉进突变层
     else if (S.mutation) { showMutation(); }
+    maybeTutorialAttackGuide();
   } catch (e) {
     Snd.err(); flash("请求失败：" + e.message);
   } finally {
@@ -2090,7 +2445,9 @@ cv.addEventListener("click", ev => {
 
   if (mode === "pick_scan") {
     mode = "idle";
-    return act({ type: "skill", uid: pickUnit, x, y });
+    const done = act({ type: "skill", uid: pickUnit, x, y });
+    defaultHint();
+    return done;
   }
   const u = unitAt(x, y);
   const su = sel ? byId(sel) : null;
@@ -2102,7 +2459,8 @@ cv.addEventListener("click", ev => {
   if (u && u.side === "z") {
     // 站在茧上的丧尸：第一次点选中，再点一次才打开处置面板（否则选不中它）
     if (coc && sel === u.uid && !u.mother) { openCocoon({ x, y, uid: u.uid }); return; }
-    sel = u.uid; mode = "idle"; Snd.click(); paint(); defaultHint(); return;
+    sel = u.uid; mode = "idle"; Snd.click(); paint(); defaultHint();
+    maybeTutorialAttackGuide(); return;
   }
   if (su && su.reach && su.reach.some(cc => cc[0] === x && cc[1] === y)) {
     return act({ type: "move", uid: su.uid, x, y });
@@ -2120,6 +2478,7 @@ cv.addEventListener("contextmenu", ev => {
 // 悬停提示
 // 底部大信息条（常驻）：鼠标停在哪一格就显示那一格上的东西
 function setIdleBar() {
+  hideHoverBar();
   const bar = document.getElementById("hoverbar");
   bar.classList.add("idle");
   const mobile = window.matchMedia("(max-width:900px)").matches;
@@ -2168,10 +2527,10 @@ function updateHover(c) {
     if (u.bound > 0) bits.push("被菌丝缠住");
     sub.textContent = bits.join(" · ");
     stats.innerHTML =
-      `<span>生命 <b style="color:${col}">${u.hp}</b>/${u.max_hp}</span>` +
-      `<span>攻击 <b>${u.atk}</b></span>` +
-      `<span>射程 <b>${u.rng}</b></span>` +
-      `<span>视野 <b>${u.sight}</b></span>` +
+      `<span>生命 <b class="st-hp">${u.hp}/${u.max_hp}</b></span>` +
+      `<span>攻击 <b class="st-atk">${u.atk}</b></span>` +
+      `<span>射程 <b class="st-rng">${u.rng}</b></span>` +
+      `<span>视野 <b class="st-sight">${u.sight}</b></span>` +
       (isZ && !u.mother ? `<span>本回合已动 <b>${u.acted}</b> 次</span>` : "");
     fill.style.width = (r * 100) + "%";
     fill.style.background = col;
@@ -2218,15 +2577,21 @@ function updateHover(c) {
 cv.addEventListener("mousemove", ev => {
   if (!S) return;
   const c = toCell(ev);
-  const same = (c && hoverCell && c[0] === hoverCell[0] && c[1] === hoverCell[1]) || (!c && !hoverCell);
-  if (same) return;
-  hoverCell = c;
-  draw();
-  updateHover(c);
+  if (!c) {
+    if (hoverCell) { hoverCell = null; hideHoverBar(); draw(); }
+    return;
+  }
+  const same = hoverCell && c[0] === hoverCell[0] && c[1] === hoverCell[1];
+  if (!same) {
+    hoverCell = c;
+    draw();
+    updateHover(c);
+  }
+  showHoverBar();
 });
 cv.addEventListener("mouseleave", () => {
   hoverCell = null;
-  setIdleBar();
+  hideHoverBar();
   draw();
   defaultHint();
 });
@@ -2265,7 +2630,7 @@ function openCocoon(p) {
     <p class="sub">${stepper ? `【${stepper.name}】踩碎了一层干壳，里面还有东西在动。` : "一层半透明的干壳，里面还有东西在动。"}
       它还能撑 ${coc.life} 回合：孵一只新的丧尸，或者让某只丧尸吞掉它升一级。</p>
 
-    <div class="grp"><label>① 孵化 · 选一只新的（出生在茧旁，Lv${(S.mother && S.mother.hatch_lvl) || 1}）</label>
+    <div class="grp" id="cocoonHatch"><label>① 孵化 · 选一只新的（出生在茧旁，Lv${(S.mother && S.mother.hatch_lvl) || 1}）</label>
       <div class="lib">
         ${Object.entries(S.meta.ztypes).map(([k, v]) => {
           const own = (S.unlocked || []).includes(k);
@@ -2274,7 +2639,7 @@ function openCocoon(p) {
           return `<div class="opt ${own ? "own" : "no"}" data-hatch="${k}"
               style="${dis ? "opacity:.34;pointer-events:none" : "cursor:pointer"}">
             <b style="color:${v.color}">${v.name}${own ? "" : " 🔒"}</b>
-            <small>HP ${lv1.hp} · 攻 ${lv1.atk} · 射程 ${lv1.rng}<br>
+            <small>HP <b class="st-hp">${lv1.hp}</b> · 攻 <b class="st-atk">${lv1.atk}</b> · 射程 <b class="st-rng">${lv1.rng}</b> · 视野 <b class="st-sight">${lv1.sight}</b><br>
             ${own ? v.blurb : `母巢 Lv${v.unlock_lvl} 时解锁`}</small>
           </div>`;
         }).join("")}
@@ -2282,15 +2647,17 @@ function openCocoon(p) {
       ${canSpawn ? "" : `<div class="tag" style="margin-top:8px;color:#ff9f43">茧的周围挤满了，没地方钻出来</div>`}
     </div>
 
-    <div class="grp"><label>② 升级 · 喂给已有的丧尸（Lv1 → Lv${maxLvl}，数值永久提升）</label>
+    <div class="grp" id="cocoonUp"><label>② 升级 · 喂给已有的丧尸（Lv1 → Lv${maxLvl}，数值永久提升）</label>
       ${up.length ? `<div class="opts">${up.map(u => {
         const lv = u.lvl || 1;
         const cur = ((S.meta.ztypes[u.kind] || {}).levels || [])[lv - 1] || u;
         const nx = ((S.meta.ztypes[u.kind] || {}).levels || [])[lv] || u;
         return `<div class="opt" data-up="${u.uid}" style="cursor:pointer">
           <b style="color:${u.color}">${u.name} <span class="tag">Lv${lv} → Lv${lv + 1}</span></b>
-          <small>HP ${u.hp}/${u.max_hp} → ${nx.hp}<br>
-          攻 ${u.atk} → ${nx.atk} · 射程 ${u.rng} → ${nx.rng}</small>
+          <small>HP <b class="st-hp">${u.hp}/${u.max_hp}</b> → <b class="st-up">${nx.hp}</b><br>
+          攻 <b class="st-atk">${u.atk}</b> → <b class="st-up">${nx.atk}</b> ·
+          射程 <b class="st-rng">${u.rng}</b> → <b class="st-up">${nx.rng}</b> ·
+          视野 <b class="st-sight">${u.sight}</b> → <b class="st-up">${nx.sight}</b></small>
         </div>`;
       }).join("")}</div>`
         : `<div class="tag">所有丧尸都到 Lv${maxLvl} 了，这枚茧只能用来孵新的。</div>`}
@@ -2316,6 +2683,27 @@ function openCocoon(p) {
     };
   });
   document.getElementById("cocLater").onclick = () => { Snd.click(); cocoonLater(); };
+
+  // 教程第 3 / 4 课：尸茧面板里分别圈出「孵化」或「升级」，另一栏先锁住
+  if (S.tut && (S.tut.i === 2 || S.tut.i === 3)) {
+    const wantHatch = S.tut.i === 2;
+    const hatch = document.getElementById("cocoonHatch");
+    const up = document.getElementById("cocoonUp");
+    const sec = wantHatch ? hatch : up;
+    const other = wantHatch ? up : hatch;
+    if (other) other.classList.add("tut-locked");
+    const card = wantHatch
+      ? (hatch && hatch.querySelector(".opt.own"))
+      : (up && up.querySelector(".opt[data-up]"));
+    if (card && sec) {
+      card.classList.add("tut-focus");
+      const tip = document.createElement("div");
+      tip.className = "tut-focus-tip";
+      tip.textContent = wantHatch ? "点这里孵化 ↓" : "点这里升级 ↓";
+      sec.insertBefore(tip, sec.firstChild);
+      try { sec.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {}
+    }
+  }
 }
 
 let sheetView = "";     // 当前弹层：menu | start | result | settings | credits | cocoon | pause | confirm | stage | mutation | tut | tutf
@@ -2324,10 +2712,13 @@ function openOverlay(view) {
   sheetView = view || "";
   document.getElementById("overlay").classList.add("on");
   closeSheets();     // 弹层出现时收起手机抽屉，避免遮罩叠遮罩
+  hideHoverBar();
+  hideTutGuide();
 }
 function closeOverlay() {
   document.getElementById("overlay").classList.remove("on");
   sheetView = "";
+  hideTutGuide();
 }
 const overlayOpen = () => document.getElementById("overlay").classList.contains("on");
 
@@ -2340,6 +2731,7 @@ function closeSheets() {
   for (const k in sideEls) if (sideEls[k]) sideEls[k].classList.remove("open");
   const sc = document.getElementById("mscrim");
   if (sc) sc.classList.remove("on");
+  updateMotherSkillHint();
 }
 
 function openSheet(name) {
@@ -2350,7 +2742,9 @@ function openSheet(name) {
   openSheetName = name;
   el.classList.add("open");
   document.getElementById("mscrim").classList.add("on");
+  hideHoverBar();
   Snd.click();
+  updateMotherSkillHint();
 }
 
 // ── 主菜单 ──────────────────────────────────────────
@@ -2384,7 +2778,7 @@ async function showMenu(note) {
       }
       Snd.click();
       if (go === "new") showStart();
-      else if (go === "tut") showTutorialIntro();
+      else if (go === "tut") { closeOverlay(); newGame({ tut: 0 }); }
       else if (go === "cred") showCredits();
       else showSettings();
     };
@@ -2663,26 +3057,7 @@ function showMutation() {
 
 // ── 开局 / 结算 ─────────────────────────────────────
 // ── 新手教程 ────────────────────────────────────────
-// 四节固定小课由引擎铺图（TUT_LEVELS），这里只负责入口、提示卡和通关/失败面板。
-function showTutorialIntro() {
-  const L = ROT.TUT_LEVELS || [];
-  const sheet = document.getElementById("sheet");
-  sheet.innerHTML = `
-    <div class="mn">
-      <h1 style="font-size:28px">新手<em>教程</em></h1>
-      <p class="sub">四节小课，每节只教一件事，做到就自动判过。走一遍再开远征，不至于一进去就发懵。</p>
-      <div class="notes">
-        ${L.map((l) => `<b>${l.name}</b><span>${l.goalText}</span>`).join("")}
-      </div>
-      <div style="display:flex;gap:10px;margin-top:18px">
-        <button class="pri" id="go" style="padding:10px 22px">开始第 1 课 →</button>
-        <button id="back">← 主菜单</button>
-      </div>
-    </div>`;
-  document.getElementById("go").onclick = () => { Snd.click(); newGame({ tut: 0 }); };
-  document.getElementById("back").onclick = () => { Snd.click(); showMenu(); };
-  openOverlay("tut");
-}
+// 六节固定小课由引擎铺图（TUT_LEVELS），主菜单点「新手教程」直接从第 1 课开始。
 
 // ── 新手指导 ────────────────────────────────────────
 // 落地时是一条浮在画面下方的对话框；点「确定」后等比缩小 + 平移到左上角，
@@ -2735,6 +3110,9 @@ function renderTut() {
     document.getElementById("tmG").textContent = t.goal_text;
     document.getElementById("tbOk").onclick = () => tutMinimize();
     document.getElementById("tmSt").onclick = () => tutNext();
+    document.getElementById("tbHint").onclick = () => { Snd.click(); showTutGuide(6000); };
+    document.getElementById("tmHint").onclick = () => { Snd.click(); showTutGuide(6000); };
+    showTutGuide(6000);       // 进课先指一下，几秒后自动收；之后只在玩家点「提示」时出现
     // 从左上角长回下方：上一课是"缩下去"，这一课反着飞，读起来才是一件事的两个方向
     if (wasDocked) tutRise(gen);
     else if (hadLesson) {
@@ -2764,6 +3142,8 @@ function renderTut() {
     const tick = () => {
       tutAdvTimer = 0;
       if (!S || !S.tut || S.tut.i !== course || !S.tut.done) return;
+      // 感染物介绍框还开着：等玩家看完再翻课
+      if (relicIntroShowing) { tutAdvTimer = setTimeout(tick, 400); return; }
       // 局内面板开着（暂停 / 尸茧 / 确认）就先等它关掉，别把玩家的面板顶了
       if (sheetView === "pause" || sheetView === "cocoon" || sheetView === "confirm") {
         tutAdvTimer = setTimeout(tick, 400);
@@ -2782,6 +3162,236 @@ function renderTut() {
     : t.last ? "✓ 已完成 · 正在收尾…"
     : "✓ 已完成 · 进入下一课…";
   document.getElementById("tbOk").textContent = t.done ? "继续" : "确定";
+}
+
+// ── 教程鼠标引导：从提示框边缘拉一条虚线到"下一步该点的位置" ──────────
+function tgCellPoint(x, y, big) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: r.left + (x * TS + TS / 2 - cam.x) * cam.z,
+    y: r.top + (y * TS + TS / 2 - cam.y) * cam.z,
+    r: Math.max(16, (big ? TS * 0.95 : TS * 0.52) * cam.z),
+  };
+}
+
+function tgTargetPoint(t) {
+  if (t.el) {
+    const r = t.el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    return {
+      x: r.left + r.width / 2, y: r.top + r.height / 2,
+      r: Math.max(18, Math.min(46, Math.min(r.width, r.height) * 0.72)),
+    };
+  }
+  if (t.unit) {
+    const big = t.unit.size === 2;
+    return tgCellPoint(t.unit.x + (big ? 1 : 0), t.unit.y + (big ? 1 : 0), big);
+  }
+  if (t.cell) return tgCellPoint(t.cell[0], t.cell[1], false);
+  return null;
+}
+
+/** 引导目标随教程步骤变化：先指单位，选中后指该点的格子 / 敌人 / 尸茧 / 母巢按钮 */
+function tutGuideTarget() {
+  if (!S || !S.tut || S.tut.done || S.over) return null;
+  const zs = S.units.filter((u) => u.side === "z" && !u.mother);
+  const su = sel ? byId(sel) : null;
+  const actor = su && su.side === "z" && !su.mother ? su : null;
+  const civilian = S.units.find((u) => u.side === "h" && u.kind === "civilian");
+
+  if (S.tut.i === 0) {
+    if (!actor) {
+      const u = zs.find((x) => x.kind === "ripper") || zs[0];
+      return u ? { unit: u } : null;
+    }
+    const cells = (actor.reach || []).filter(([x, y]) => x !== actor.x || y !== actor.y);
+    if (!cells.length) return { unit: actor };
+    let best = cells[0], bd = Infinity;
+    for (const [x, y] of cells) {
+      const d = Math.abs(x - actor.x) + Math.abs(y - actor.y);
+      if (d < bd) { bd = d; best = [x, y]; }
+    }
+    return { cell: best };
+  }
+
+  if (S.tut.i === 1) {
+    if (!actor) {
+      const u = zs.find((x) => x.kind === "ripper") || zs[0];
+      return u ? { unit: u } : null;
+    }
+    if (!civilian) return { unit: actor };
+    if ((actor.targets || []).indexOf(civilian.uid) >= 0) return { unit: civilian };
+    const adj = (actor.reach || []).find(([x, y]) =>
+      Math.abs(x - civilian.x) + Math.abs(y - civilian.y) === 1);
+    return adj ? { cell: adj } : { unit: civilian };
+  }
+
+  if (S.tut.i === 2 || S.tut.i === 3) {
+    const coc = (S.cocoons || [])[0];
+    if (coc) return { cell: [coc.x, coc.y] };
+    if (civilian) return { unit: civilian };
+    if (actor) return { unit: actor };
+    const u = zs[0];
+    return u ? { unit: u } : null;
+  }
+
+  if (S.tut.i === 4) {
+    // 母巢技能要按的是左侧 UI 按钮，不在"地图上"——不画线，由提示按钮用文字说明
+    return null;
+  }
+
+  if (S.tut.i === 5) {
+    const r = (S.relic_drops || [])[0];
+    return r ? { cell: [r.x, r.y] } : null;
+  }
+  return null;
+}
+
+function tutGuideLabel(t) {
+  if (!t || !S || !S.tut) return "";
+  const i = S.tut.i;
+  if (i === 0) return t.unit ? "点它选中" : "点蓝格移动";
+  if (i === 1) return t.unit && t.unit.side === "h" ? "点它攻击" : "先走到这里";
+  if (i === 2 || i === 3) {
+    return t.unit && t.unit.side === "h" ? "点它攻击" : "走到尸茧上";
+  }
+  if (i === 5) return "走过去捡起";
+  return "";
+}
+
+/** 第 2/3/4 课：贴到市民就提示攻击；第 3/4 课击杀后提示走上尸茧 */
+function maybeTutorialAttackGuide() {
+  if (!S || !S.tut || S.tut.done) return;
+  if ([1, 2, 3].indexOf(S.tut.i) < 0) return;
+  if ((S.tut.i === 2 || S.tut.i === 3) && (S.cocoons || []).length) {
+    showTutGuide(5000);
+    return;
+  }
+  const a = sel ? byId(sel) : null;
+  const c = S.units.find((u) => u.side === "h" && u.kind === "civilian");
+  if (!a || !c) return;
+  if ((a.targets || []).indexOf(c.uid) >= 0) showTutGuide(5000);
+}
+
+/** 教程第 5 课：让左侧「发动」按钮（手机上是底栏「母巢」）呼吸发光 */
+function updateMotherSkillHint() {
+  const on = !!(S && S.tut && S.tut.i === 4 && !S.tut.done);
+  const b = document.getElementById("btnMother");
+  if (b) b.classList.toggle("tut-breathe", on);
+  const mb = document.querySelector('#mbar [data-sheet="left"]');
+  if (mb) mb.classList.toggle("tut-breathe", on && !openSheetName);
+}
+
+let tutGuideUntil = 0;
+let tutGuideTimer = 0;
+
+/** 没有选中单位、或目标是 UI 按钮时，从目标旁边拉一小段箭头，不从提示框出发 */
+function tutGuideSource(t, p) {
+  const actor = sel ? byId(sel) : null;
+  if (actor && actor.side === "z" && !actor.mother && !t.el) {
+    const big = actor.size === 2;
+    const a = tgCellPoint(actor.x + (big ? 1 : 0), actor.y + (big ? 1 : 0), big);
+    const dx = p.x - a.x, dy = p.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const r = 18 + (big ? 12 : 0);
+    return { x: a.x + dx / len * r, y: a.y + dy / len * r };
+  }
+  const up = p.y > 140 ? -1 : 1;
+  return { x: p.x - 44, y: p.y + up * 72 };
+}
+
+function hideTutGuide() {
+  tutGuideUntil = 0;
+  clearTimeout(tutGuideTimer);
+  const svg = document.getElementById("tutGuide");
+  if (svg) svg.classList.remove("on");
+}
+
+/** 教程「提示」按钮：地图目标露引导线；第 5 课是 UI 按钮，就用文字提示 */
+function tutPrompt() {
+  Snd.click();
+  const t = S && S.tut;
+  if (!t) return;
+  if (t.i === 4) {
+    flash(isMobile() ? "点底栏正在发光的「母巢」，再点「发动」" : "点左侧正在发光的「发动」按钮");
+    return;
+  }
+  showTutGuide(6000);
+}
+
+/** 只在"需要"时露几秒：进课时自动露一次，或玩家点提示按钮 */
+function showTutGuide(ms) {
+  if (!S || !S.tut || S.tut.done || S.over) return;
+  if (!tutGuideTarget()) return;      // 没有地图目标就不显示，避免指向 UI
+  const d = ms || 6000;
+  tutGuideUntil = Date.now() + d;
+  clearTimeout(tutGuideTimer);
+  tutGuideTimer = setTimeout(() => {
+    tutGuideUntil = 0;
+    const svg = document.getElementById("tutGuide");
+    if (svg) svg.classList.remove("on");
+  }, d);
+  updateTutGuide();
+}
+
+function updateTutGuide() {
+  const svg = document.getElementById("tutGuide");
+  if (!svg) return;
+  const active = S && S.tut && !S.tut.done && !S.over &&
+    !overlayOpen() && Date.now() < tutGuideUntil;
+  if (!active) { svg.classList.remove("on"); return; }
+  const t = tutGuideTarget();
+  const p = t ? tgTargetPoint(t) : null;
+  if (!p) { svg.classList.remove("on"); return; }
+
+  // 只在地图范围内、且不被教程提示框挡住时才画
+  const cr = cv.getBoundingClientRect();
+  if (p.x < cr.left + 6 || p.x > cr.right - 6 ||
+      p.y < cr.top + 6 || p.y > cr.bottom - 6) {
+    svg.classList.remove("on");
+    return;
+  }
+  const box = document.getElementById("tutBox");
+  if (box && box.classList.contains("on")) {
+    const br = box.getBoundingClientRect();
+    if (p.x >= br.left && p.x <= br.right && p.y >= br.top && p.y <= br.bottom) {
+      svg.classList.remove("on");
+      return;
+    }
+  }
+
+  const a = tutGuideSource(t, p);
+  const dx = p.x - a.x, dy = p.y - a.y;
+  const len = Math.hypot(dx, dy);
+  const line = document.getElementById("tgLine");
+  if (len < 26) {
+    line.style.display = "none";
+  } else {
+    line.style.display = "";
+    const ux = dx / len, uy = dy / len;
+    const ex = p.x - ux * (p.r + 5), ey = p.y - uy * (p.r + 5);
+    line.setAttribute("x1", a.x.toFixed(1)); line.setAttribute("y1", a.y.toFixed(1));
+    line.setAttribute("x2", ex.toFixed(1)); line.setAttribute("y2", ey.toFixed(1));
+  }
+
+  const pulse = document.getElementById("tgPulse");
+  pulse.setAttribute("cx", p.x.toFixed(1)); pulse.setAttribute("cy", p.y.toFixed(1));
+  pulse.setAttribute("r", p.r.toFixed(1));
+  const core = document.getElementById("tgCore");
+  core.setAttribute("cx", p.x.toFixed(1)); core.setAttribute("cy", p.y.toFixed(1));
+
+  const label = document.getElementById("tgLabel");
+  const txt = tutGuideLabel(t);
+  label.textContent = txt;
+  if (txt) {
+    const ly = p.y - p.r - 12 < 18 ? p.y + p.r + 20 : p.y - p.r - 12;
+    label.setAttribute("x", p.x.toFixed(1));
+    label.setAttribute("y", ly.toFixed(1));
+    label.style.display = "";
+  } else {
+    label.style.display = "none";
+  }
+  svg.classList.add("on");
 }
 
 // 下方的宽对话框 → 左上角的小任务框
@@ -2893,7 +3503,7 @@ function tutNext() {
   tutFlight++; tutAdvClear();
   Snd.click();
   if (t.last) { showTutFinish(); return; }
-  newGame({ tut: t.i + 1 });
+  act({ type: "tut_next" });     // 保留现有丧尸位置，只铺下一课的新元素
 }
 
 function showTutFinish() {
@@ -2901,7 +3511,7 @@ function showTutFinish() {
   sheet.innerHTML = `
     <div class="mn">
       <h1 style="font-size:26px">教程<em>结束</em></h1>
-      <p class="sub">四节课都过了。真正的远征里还有这些东西，边打边学就行。</p>
+      <p class="sub">六节课都过了。真正的远征里还有这些东西，边打边学就行。</p>
       <div class="notes">
         <b>母巢升级</b><span>击杀人类攒经验 · 升级产感染物、解锁新丧尸形态</span>
         <b>感染物</b><span>4 档稀有度 · 越深越可能出稀有 / 传说 · 成对凑连携</span>
@@ -2957,7 +3567,7 @@ async function showStart() {
             ${Object.entries(M).map(([k, v]) => `
               <div class="opt${k === mSel ? " on" : ""}" data-m="${k}">
                 <b>${v.name}</b>
-                <small>HP ${v.hp} · 技能「${v.skill}」（CD ${v.cd}）<br>${v.desc}</small>
+                <small>HP <b class="st-hp">${v.hp}</b> · 技能「${v.skill}」（CD ${v.cd}）<br>${v.desc}</small>
               </div>`).join("")}
           </div>
           <div class="btns">
@@ -3030,7 +3640,7 @@ async function showStart() {
     const bk = document.getElementById("back");
     if (bk) bk.onclick = () => { Snd.click(); showMenu(); };
     const tl = document.getElementById("tutLink");
-    if (tl) tl.onclick = () => { Snd.click(); showTutorialIntro(); };
+    if (tl) tl.onclick = () => { Snd.click(); closeOverlay(); newGame({ tut: 0 }); };
     const pv = document.getElementById("prev");
     if (pv) pv.onclick = () => { Snd.click(); step -= 1; render(); };
     const nx = document.getElementById("next");
@@ -3090,6 +3700,11 @@ const DIRS = {
 };
 
 document.addEventListener("keydown", e => {
+  if (relicIntroShowing) {
+    e.preventDefault();
+    if (e.code === "Escape") closeRelicIntro();
+    return;
+  }
   if (e.code === "KeyM") {
     Snd.muted = !Snd.muted;
     document.getElementById("btnMute").textContent = Snd.muted ? "🔇" : "♪";
@@ -3138,7 +3753,7 @@ document.addEventListener("keydown", e => {
     const mine = S.units.filter(u => u.side === "z")
       .sort((a, b) => (a.mother ? 1 : 0) - (b.mother ? 1 : 0) || a.uid - b.uid);
     const u = mine[+dm[1] - 1];
-    if (u) { sel = u.uid; Snd.click(); paint(); defaultHint(); }
+    if (u) { sel = u.uid; Snd.click(); paint(); defaultHint(); maybeTutorialAttackGuide(); }
     return;
   }
   if (DIRS[code]) {
@@ -3161,6 +3776,8 @@ document.getElementById("btnEnd").onclick = () => act({ type: "end_turn" });
 document.getElementById("btnMenu").onclick = () => { Snd.click(); showPause(); };
 // 手机端：底栏 / 抽屉
 document.getElementById("mscrim").onclick = () => closeSheets();
+// 鼠标移到左右 UI 上时，底部信息条直接消失（只在悬停地图时出现）
+document.querySelectorAll(".side").forEach(el => el.addEventListener("mouseenter", hideHoverBar));
 document.querySelectorAll("#mbar [data-sheet]").forEach(n => {
   n.onclick = () => openSheet(n.dataset.sheet);
 });
@@ -3175,6 +3792,9 @@ document.getElementById("btnMute").onclick = () => {
   Snd.init(); Snd.muted = !Snd.muted;
   document.getElementById("btnMute").textContent = Snd.muted ? "🔇" : "♪";
 };
+// 教程框做收起/展开动画时不会触发 draw，这里低频同步引导线
+setInterval(() => { if (S && S.tut) updateTutGuide(); }, 120);
+
 window.addEventListener("resize", () => {
   if (!S) return;
   if (!window.matchMedia("(max-width:900px)").matches) closeSheets();
