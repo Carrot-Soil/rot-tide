@@ -15,7 +15,7 @@
 "use strict";
 
 // ─────────────────────────── 常量 ───────────────────────────
-const VERSION = "0.9.3";
+const VERSION = "0.9.13";
 const BUILD = "2026-11-25";
 
 const W = 24, H = 16;
@@ -54,7 +54,7 @@ const ZTYPES = {
     name: "嗅探者", short: "嗅", hp: 3, atk: 1, rng: 1, sight: 8,
     up: { hp: 2, atk: 1, sight: 2 },
     color: "#4fd8f0", shape: "diamond", unlock_lvl: 0,
-    skill: "拆解视野：揭示指定点周围 3 格的迷雾",
+    skill: "拆解视野：Lv1 十字 5 格 / Lv2 九宫格 9 格 / Lv3 5×5 25 格（随等级扩大）",
     blurb: "视野极广，开局唯一能撕开黑幕的单位",
   },
   ripper: {
@@ -67,9 +67,9 @@ const ZTYPES = {
   bulwark: {
     name: "肉垒", short: "垒", hp: 10, atk: 1, rng: 1, sight: 3,
     up: { hp: 4, atk: 1 },
-    color: "#8fa3c8", shape: "square", unlock_lvl: 0,
-    skill: "筑垒：自身 +3 护盾，相邻友军 +1 护盾",
-    blurb: "血厚如墙，站在母巢前面挨枪",
+    color: "#8fa3c8", shape: "square", unlock_lvl: 4,
+    skill: "筑垒：自身 +3 护盾，相邻友军 +1 护盾；被动：肉垒站在母巢 3 格内时，远程人类优先攻击肉垒",
+    blurb: "中后期肉盾，用嘲讽把狙击手等远程人类的枪口从母巢引开",
   },
   spitter: {
     name: "喷吐者", short: "吐", hp: 4, atk: 2, rng: 4, sight: 4,
@@ -226,13 +226,71 @@ const TUT_LEVELS = [
     ],
   },
   {
-    name: "第 3 课 · 尸茧与升级",
-    goal: "evolve", goalText: "让一只丧尸吞掉尸茧升到 Lv2",
-    hint: "打死人后留下尸茧：让丧尸走到那一格，会弹出面板——「孵化新丧尸」或「吞掉升级」。这一课请选升级。",
+    name: "第 3 课 · 尸茧与孵化",
+    goal: "hatch", goalText: "先击杀市民，再用尸茧孵化一只新丧尸",
+    hint: "这一课没有现成尸茧：先打死场上的市民，尸茧会留在倒下的位置；让丧尸走上去，在面板里选「① 孵化」。",
     ap: 5,
     mother: [4, 6],
     zombies: [["ripper", 9, 7], ["scent", 9, 10]],
     humans: [["civilian", 11, 7]],
+    relic: null,
+    clearCocoons: true,
+    map: [
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#....,##................#",
+      "#....,##................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "########################",
+    ],
+  },
+  {
+    name: "第 4 课 · 尸茧与升级",
+    goal: "evolve", goalText: "先击杀市民，再让丧尸吞茧升到 Lv2",
+    hint: "先打死场上的市民取得尸茧；让丧尸走上去，这次选「② 升级」，血量、攻击、射程和视野都会永久提高。",
+    ap: 5,
+    mother: [4, 6],
+    zombies: [["ripper", 9, 7], ["scent", 9, 10]],
+    humans: [["civilian", 11, 7]],
+    relic: null,
+    clearCocoons: true,
+    map: [
+      "########################",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#....,##................#",
+      "#....,##................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "#......................#",
+      "########################",
+    ],
+  },
+  {
+    name: "第 5 课 · 母巢技能",
+    goal: "mother", goalText: "按 Q 使用一次母巢技能",
+    hint: "母巢技能不花腐能，只受冷却限制——左侧【母巢】卡上正在呼吸发光的「发动」按钮就是它。",
+    ap: 5,
+    mother: [4, 6],
+    zombies: [["ripper", 9, 7], ["spitter", 9, 10]],
+    humans: [],
     relic: null,
     map: [
       "########################",
@@ -254,13 +312,13 @@ const TUT_LEVELS = [
     ],
   },
   {
-    name: "第 4 课 · 母巢技能与感染物",
-    goal: "mother", goalText: "按 Q 使用一次母巢技能",
-    hint: "母巢技能不花腐能，只受冷却限制——左侧【母巢】卡上的按钮就是它。顺手把发光的感染物捡走试试。",
+    name: "第 6 课 · 感染物",
+    goal: "relic", goalText: "捡起一枚感染物",
+    hint: "地图上发光的晶体就是感染物；让一只丧尸走上去捡起它，会永久强化全队。",
     ap: 5,
     mother: [4, 6],
-    zombies: [["ripper", 9, 7], ["bulwark", 9, 10]],
-    humans: [["civilian", 10, 6], ["civilian", 10, 10]],
+    zombies: [["ripper", 9, 7], ["spitter", 9, 10]],
+    humans: [],
     relic: ["spleen", 12, 8],
     map: [
       "########################",
@@ -274,7 +332,7 @@ const TUT_LEVELS = [
       "#......................#",
       "#......................#",
       "#......................#",
-      "#..........,,,,........#",
+      "#......................#",
       "#......................#",
       "#......................#",
       "#......................#",
@@ -408,7 +466,7 @@ const MUTATION_COST = {           // 突变价目（生物质）
   upgrade: (v) => 7 + v * 6,
 };
 
-const START_UNLOCKED = ["scent", "ripper", "bulwark", "spitter"];
+const START_UNLOCKED = ["scent", "ripper", "spitter"];
 
 const FX_KEYS = ["atk", "hp", "sight", "rng", "apmax", "leech", "cocoon", "bio",
                  "hatch", "regen", "expk", "ward", "pierce", "splash", "frenzy",
@@ -552,6 +610,24 @@ function zstats(kind, lvl) {
     rng: b.rng + (up.rng || 0) * k,
     sight: b.sight + (up.sight || 0) * k,
   };
+}
+
+/** 嗅探者扫描范围：Lv1 十字 5 格 / Lv2 九宫格 9 格 / Lv3 5×5 25 格。 */
+function scentCells(lvl, cx, cy) {
+  const L = clamp(int(lvl), 1, MAX_LVL);
+  const out = [];
+  const add = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) out.push([x, y]); };
+  if (L <= 1) {
+    add(cx, cy);
+    add(cx + 1, cy); add(cx - 1, cy);
+    add(cx, cy + 1); add(cx, cy - 1);
+    return out;
+  }
+  const r = L === 2 ? 1 : 2;
+  for (let y = cy - r; y <= cy + r; y++) {
+    for (let x = cx - r; x <= cx + r; x++) add(x, y);
+  }
+  return out;
 }
 
 // ─────────────────────────── 存档（localStorage）───────────────────────────
@@ -763,7 +839,7 @@ class Game {
     try {
       this.tut_i = null;        // 存档只会是远征，绝不可能是教程
       this.tut_done = false;
-      this.tut_flags = { moved: false, skilled: false };
+      this.tut_flags = { moved: false, skilled: false, hatched: false, relic: false };
       this.rng = new RNG(1);
       this.rng.setState(d.rng);
       this.seed = int(d.seed);
@@ -876,7 +952,7 @@ class Game {
     this._rxc = null;
     this.tut_i = null;          // 非 null = 正在打新手教程的第 N 课
     this.tut_done = false;
-    this.tut_flags = { moved: false, skilled: false };
+    this.tut_flags = { moved: false, skilled: false, hatched: false, relic: false };
 
     // 新手教程：走固定小关，不进远征、不写存档
     if (opts.tut !== undefined && opts.tut !== null && opts.tut !== false) {
@@ -896,21 +972,26 @@ class Game {
     return this.snapshot();
   }
 
-  // ── 新手教程：铺一节固定小课 ─────────────────────────
-  _enter_tut() {
+  // ── 新手教程：铺一节固定小课（keep = 上一课带过来的我方单位）──
+  _enter_tut(keep) {
     const L = TUT_LEVELS[this.tut_i];
+    const carry = Array.isArray(keep) ? keep : [];
+    const prevSeen = carry.length ? new Set(this.seen) : new Set();
+    const prevCocoons = carry.length ? this.cocoons.slice() : [];
+
     this.turn = 1;
     this.stage_clear = false;
     this.buff_view = false;
     this.mother_cd = 0;
-    this.cocoons = [];
+    this.cocoons = L.clearCocoons ? [] : prevCocoons;
     this.pending = null;
-    this.seen = new Set();
+    this.seen = prevSeen;
     this.visible = new Set();
     this.events = [];
     this.relic_drops = [];
     this.units = [];
-    this.next_id = 1;
+    this.next_id = carry.length
+      ? Math.max(...carry.map((u) => int(u.uid) || 0)) + 1 : 1;
     this.infected = 0;
     this.biomass = 0;
     this.gained = 0;
@@ -924,8 +1005,8 @@ class Game {
     this.mother_lvl = 1;
     this.mother_exp = 0;
     this.tut_done = false;
-    this.tut_flags = { moved: false, skilled: false };
-    this.unlocked = ["scent", "ripper", "bulwark", "spitter", "bloat"];
+    this.tut_flags = { moved: false, skilled: false, hatched: false, relic: false };
+    this.unlocked = ["scent", "ripper", "spitter", "bloat"];
     this.map_i = 0;
     this.layer_i = 0;
     this.map_cfg = { name: "新手教程", sub: "" };
@@ -936,12 +1017,69 @@ class Game {
     this.mother_cell = L.mother.slice();
 
     const mt = MOTHERS[this.mother_kind];
-    // 教程里把母体视野调大一点：小关没什么遮挡，看得清才不会一头雾水
-    this._add("z", "mother:" + this.mother_kind, L.mother[0], L.mother[1],
-              { hp: mt.hp, atk: 0, rng: 0, sight: 7, mother: true });
-    for (const z of L.zombies) this._add("z", z[0], z[1], z[2], { lvl: z[3] || 1 });
-    for (const h of L.humans) this._add("h", h[0], h[1], h[2]);
-    if (L.relic) this.relic_drops.push({ x: L.relic[1], y: L.relic[2], id: L.relic[0], life: 99 });
+    const carriedMother = carry.find((u) => u.mother) || null;
+    if (carriedMother) {
+      // 母巢固定在每课同一个位置；血量/等级沿用
+      carriedMother.x = L.mother[0];
+      carriedMother.y = L.mother[1];
+      carriedMother.shield = 0; carriedMother.acted = 0; carriedMother.skill_used = false;
+      carriedMother.aim = 0; carriedMother.aim_uid = 0; carriedMother.bound = 0;
+      this.units.push(carriedMother);
+    } else {
+      this._add("z", "mother:" + this.mother_kind, L.mother[0], L.mother[1],
+                { hp: mt.hp, atk: 0, rng: 0, sight: 7, mother: true });
+    }
+    const mother = this.units.find((u) => u.mother) || null;
+
+    // 上一课的丧尸原样留在原地；位置被新地图挡住/被占时才就近挪
+    for (const u of carry) {
+      if (u.mother || u.hp <= 0) continue;
+      let px = u.x, py = u.y;
+      if (!this._free(px, py)) {
+        const spot = this._nearestFreeCell(px, py) ||
+          (mother ? this._spawn_spot(mother, 3) : null);
+        if (!spot) continue;
+        px = spot[0]; py = spot[1];
+      }
+      u.x = px; u.y = py;
+      u.shield = 0; u.acted = 0; u.skill_used = false;
+      u.aim = 0; u.aim_uid = 0; u.bound = 0;
+      this.units.push(u);
+    }
+
+    // 这一课需要、但队伍里没有的丧尸：按关卡坐标生成，位置被占就就近找空位
+    const haveKind = new Set(this.units
+      .filter((u) => u.side === "z" && !u.mother).map((u) => u.kind));
+    for (const z of L.zombies) {
+      if (haveKind.has(z[0])) continue;
+      const spot = this._free(z[1], z[2]) ? [z[1], z[2]]
+        : (this._nearestFreeCell(z[1], z[2]) || (mother ? this._spawn_spot(mother, 3) : null));
+      if (!spot) continue;
+      this._add("z", z[0], spot[0], spot[1], { lvl: z[3] || 1 });
+      haveKind.add(z[0]);
+    }
+
+    for (const h of L.humans) {
+      const spot = this._free(h[1], h[2]) ? [h[1], h[2]] : this._nearestFreeCell(h[1], h[2]);
+      if (spot) this._add("h", h[0], spot[0], spot[1]);
+    }
+    if (L.relic) {
+      const [rid, rx, ry] = L.relic;
+      const spot = this._free(rx, ry) ? [rx, ry] : this._nearestFreeCell(rx, ry);
+      if (spot) this.relic_drops.push({ x: spot[0], y: spot[1], id: rid, life: 99 });
+    }
+
+    if (L.cocoon) {
+      const [cx, cy] = L.cocoon;
+      const spot = this._free(cx, cy) ? [cx, cy] : this._nearestFreeCell(cx, cy);
+      if (spot && !this.cocoons.some((c) => c.x === spot[0] && c.y === spot[1])) {
+        this.cocoons.push({ x: spot[0], y: spot[1], life: 99 });
+      }
+    }
+
+    // 只保留落在可通行格上的旧尸茧
+    this.cocoons = this.cocoons.filter((c) =>
+      c.life > 0 && this.grid[c.y] && this.grid[c.y][c.x] !== WALL);
 
     this.ap_max = L.ap;
     this.ap = this.ap_max;
@@ -950,6 +1088,20 @@ class Game {
     this._say(L.hint);
   }
 
+  /** 教程翻到下一课：保留现有丧尸的位置与血量，再铺下一课的新元素。 */
+  _act_tut_next() {
+    if (this.tut_i == null) throw new ActError("当前不在教程里");
+    if (!this.tut_done) throw new ActError("先完成这一课");
+    if (this.tut_i >= TUT_LEVELS.length - 1) throw new ActError("已经是最后一课");
+    const keep = this.units
+      .filter((u) => u.side === "z" && u.hp > 0)
+      .map((u) => Object.assign({}, u));
+    if (!keep.some((u) => u.mother)) throw new ActError("母巢已经倒下了");
+    this.tut_i += 1;
+    this._enter_tut(keep);
+  }
+
+
   // 教程目标判定：任何一次成功的指令之后都要过一遍
   _tut_check() {
     if (this.tut_i == null || this.tut_done) return;
@@ -957,8 +1109,10 @@ class Game {
     const ok =
       L.goal === "move" ? this.tut_flags.moved :
       L.goal === "kill" ? this.infected >= 1 :
+      L.goal === "hatch" ? this.tut_flags.hatched :
       L.goal === "evolve" ? this.units.some((u) => u.side === "z" && !u.mother && u.lvl >= 2) :
-      L.goal === "mother" ? this.tut_flags.skilled : false;
+      L.goal === "mother" ? this.tut_flags.skilled :
+      L.goal === "relic" ? this.tut_flags.relic : false;
     if (!ok) return;
     this.tut_done = true;
     this._say(`✓ 完成：${L.goalText}。`);
@@ -1530,6 +1684,7 @@ class Game {
     this.relic_drops.splice(this.relic_drops.indexOf(d), 1);
     this.relics.push(d.id);
     this._rxc = null;
+    if (this.tut_i != null) this.tut_flags.relic = true;
     this._apply_fx(RELICS[d.id].fx);
     this._ev({ t: "relic", uid: u.uid, x: d.x, y: d.y, id: d.id,
                name: RELICS[d.id].name, color: RELICS[d.id].color,
@@ -1573,6 +1728,20 @@ class Game {
   }
 
   /** 从母巢往外一圈圈找空位：2×2 的巢身边常挤满，只看第一圈会一直失败 */
+  /** 从 (x,y) 开始按环向外找最近的空格；找不到返回 null。 */
+  _nearestFreeCell(x, y) {
+    if (this._free(x, y)) return [x, y];
+    for (let r = 1; r < Math.max(W, H); r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          if (this._free(x + dx, y + dy)) return [x + dx, y + dy];
+        }
+      }
+    }
+    return null;
+  }
+
   _spawn_spot(m, rmax) {
     for (let r = 1; r <= (rmax || 3); r++) {
       const ring = [];
@@ -1623,6 +1792,7 @@ class Game {
         else if (t === "cocoon") this._act_cocoon(payload);
         else if (t === "mother") this._act_mother();
         else if (t === "advance") this._act_advance();
+        else if (t === "tut_next") this._act_tut_next();
         else if (t === "end_turn") this._end_turn();
       } catch (e) {
         if (e instanceof ActError) this._say("× " + e.message);
@@ -1720,8 +1890,9 @@ class Game {
     if (k === "scent") {
       const x = int(p.x), y = int(p.y);
       if (x < 0 || y < 0 || x >= W || y >= H) throw new ActError("坐标非法");
-      for (const [cx, cy] of this.disc(x, y, 3)) this.seen.add(key(cx, cy));
-      this._say(`嗅探者扫描 (${x},${y}) 周围，黑幕被撕开一角。`);
+      const cells = scentCells(u.lvl, x, y);
+      for (const [cx, cy] of cells) this.seen.add(key(cx, cy));
+      this._say(`嗅探者扫描 (${x},${y})，撕开 ${cells.length} 格迷雾。`);
     } else if (k === "bulwark") {
       u.shield += 3;
       for (const o of this.units) {
@@ -1817,6 +1988,7 @@ class Game {
       const hl = this.hatch_level();
       const u = this._add("z", kind, slot[0], slot[1], { lvl: hl });
       this.pending = null;
+      if (this.tut_i != null) this.tut_flags.hatched = true;
       this._say(`尸茧裂开，【${ZTYPES[kind].name}】从里面爬出来（Lv${hl}）。`);
       this._maybe_cocoon(u);
     } else if (choice === "upgrade") {
@@ -2175,10 +2347,29 @@ class Game {
     return dist(e, t) <= e.rng + 0.01;
   }
 
+  /** 肉垒的嘲讽：贴着母巢时，把远程人类的火力从母巢引到自己身上 */
+  _taunt_target(e) {
+    const kind = HTYPES[e.kind];
+    if (!kind || !(kind.aim || e.rng >= 4)) return null;
+    const mother = this.units.find((u) => u.mother && u.hp > 0);
+    if (!mother) return null;
+    const bs = this.units.filter((u) =>
+      u.side === "z" && u.hp > 0 && u.kind === "bulwark" &&
+      this.unitDist(u, mother) <= 3.01 &&
+      this.unitDist(e, u) <= e.rng + 0.01 && this._losTo(e, u));
+    if (!bs.length) return null;
+    bs.sort((a, b) => this.unitDist(e, a) - this.unitDist(e, b));
+    return bs[0];
+  }
+
   _targets_in_reach(e) {
     const out = this.units.filter((u) =>
       u.side === "z" && u.hp > 0 && this._in_reach(e, u) && this._losTo(e, u));
+    const taunt = this._taunt_target(e);
     out.sort((a, b) => {
+      const at = taunt && a === taunt ? 0 : 1;
+      const bt = taunt && b === taunt ? 0 : 1;
+      if (at !== bt) return at - bt;
       const am = (a.mother && this.unitDist(e, a) <= 2.0) ? 0 : 1;
       const bm = (b.mother && this.unitDist(e, b) <= 2.0) ? 0 : 1;
       if (am !== bm) return am - bm;
@@ -2196,6 +2387,13 @@ class Game {
    * @returns "aiming" | "fired" | "none"
    */
   _sniperAim(e, kind) {
+    const taunt = this._taunt_target(e);
+    if (taunt && e.aim_uid !== taunt.uid) {
+      e.aim = 1;
+      e.aim_uid = taunt.uid;
+      this._say(`${kind.name} 被肉垒吸引，改锁定 ${this._uname(taunt)}，下一回合开枪。`);
+      return "aiming";
+    }
     const locked = e.aim_uid ? this.by_id(e.aim_uid) : null;
     const valid = !!locked && locked.hp > 0 && locked.side === "z" &&
       this.unitDist(e, locked) <= e.rng + 0.01 && this._losTo(e, locked);
@@ -2425,7 +2623,8 @@ class Game {
     for (const k of Object.keys(RELICS)) {
       const v = RELICS[k];
       relicsMeta[k] = { name: v.name, tag: v.tag, color: v.color, desc: v.desc,
-                        r: v.r, rarity: RARITY[v.r].name, rarity_color: RARITY[v.r].color };
+                        r: v.r, rarity: RARITY[v.r].name, rarity_color: RARITY[v.r].color,
+                        fx: Object.assign({}, v.fx) };
     }
     const terrainMeta = TERR.map((t) => ({
       name: t.name, color: t.color, pat: t.pat, cost: t.cost,
@@ -2593,5 +2792,6 @@ return {
   TERR: TERR, RELICS: RELICS, RARITY: RARITY, PAIRS: PAIRS,
   W: W, H: H, RUN_LAYERS: RUN_LAYERS, MAPS_PER_RUN: MAPS_PER_RUN,
   LAYERS_PER_MAP: LAYERS_PER_MAP,
+  scentCells: scentCells,
 };
 });
