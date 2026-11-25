@@ -1,0 +1,3211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>腐潮 ROT TIDE</title>
+<style>
+  :root{
+    --bg:#0a0d12; --panel:#11161e; --panel2:#0d1219; --line:#1f2733;
+    --ink:#dfe7f2; --dim:#7c8798; --acc:#5ecbe8; --warn:#ff6b6b; --ok:#8ef0bb; --bio:#ffd166;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:
+      radial-gradient(1100px 600px at 20% -10%, #12202c 0%, transparent 60%),
+      radial-gradient(900px 500px at 110% 110%, #1a1220 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font:14px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  #app{
+    display:grid; grid-template-columns:296px minmax(0,1fr) 344px;
+    gap:12px; padding:12px; height:100vh;
+  }
+  #stage{
+    position:relative; min-width:0; min-height:0; overflow:hidden;
+    border:1px solid var(--line); border-radius:12px;
+    background:radial-gradient(700px 420px at 50% 40%, #0c1219 0%, #06090d 100%);
+    box-shadow:inset 0 0 80px rgba(0,0,0,.65);
+    /* 底部留出常驻信息条的固定高度：canvas 只吃剩下的地方，
+       这样信息条永远不会盖住地图最下面几行 */
+    padding:0 0 130px 0;
+  }
+  canvas{
+    display:block; width:100%; height:100%; cursor:grab; touch-action:none;
+  }
+  canvas.dragging{cursor:grabbing}
+  /* 顶部操作提示（小） */
+  #hint{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    font-size:12px; color:var(--dim); background:rgba(10,13,18,.82);
+    padding:4px 12px; border-radius:20px; border:1px solid var(--line);
+    white-space:nowrap; max-width:72%; overflow:hidden; text-overflow:ellipsis;
+    pointer-events:none; z-index:3;
+  }
+  /* 底部单位信息条（大）：常驻，鼠标停在哪个格子就显示哪一格的东西 */
+  #hoverbar{
+    position:absolute; left:12px; right:12px; bottom:10px;
+    background:linear-gradient(180deg,rgba(17,24,34,.97),rgba(10,15,21,.97));
+    border:1px solid #2b3a4d; border-radius:11px;
+    padding:9px 16px 10px; z-index:3; pointer-events:none;
+    box-shadow:0 14px 36px -14px #000, 0 0 0 1px rgba(94,203,232,.08) inset;
+    overflow:hidden;
+  }
+  #hoverbar.idle .hb-name{color:#7c8a9c !important; font-size:15px; font-weight:700}
+  .hb-top{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .hb-name{font-size:19px; font-weight:800; letter-spacing:.04em}
+  .hb-sub{font-size:12.5px; color:var(--dim)}
+  .hb-stats{display:flex; gap:16px; margin-top:7px; font-size:15px; font-variant-numeric:tabular-nums; flex-wrap:wrap}
+  .hb-stats b{font-size:17px; font-weight:800}
+  .hb-stats span{color:var(--dim)}
+  .hb-bar{height:5px; border-radius:3px; background:#1b2330; overflow:hidden; margin-top:8px}
+  .hb-bar i{display:block; height:100%}
+  .hb-hint{margin-top:6px; font-size:12.5px; color:#8fa0b4;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  /* 缩放控件 */
+  #zoombar{
+    position:absolute; right:10px; top:10px; z-index:4;
+    display:flex; align-items:center; gap:6px;
+    background:rgba(10,14,20,.9); border:1px solid var(--line);
+    border-radius:9px; padding:5px 7px;
+  }
+  #zoombar button{padding:3px 8px; font-size:13px; line-height:1.2; border-radius:6px}
+  #zoombar .zval{
+    font-size:12px; color:var(--dim); min-width:44px; text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .side{
+    display:flex; flex-direction:column; gap:10px; min-height:0;
+    background:linear-gradient(180deg,#131923,#0e1319);
+    border:1px solid var(--line); border-radius:12px; padding:12px;
+    overflow:auto;
+  }
+  .side.right{gap:9px}
+  .side.left{overflow:hidden}
+  .brand{font-size:19px; font-weight:800; letter-spacing:.18em; color:#eaf2ff; display:flex; align-items:center}
+  .brand span{font-size:10px; letter-spacing:.32em; color:var(--dim); font-weight:400; margin-left:6px}
+  .brand .mute{margin-left:auto; background:none; border:none; color:var(--dim); font-size:15px; padding:2px 4px; cursor:pointer}
+  .brand .mute:hover{color:var(--ink); background:none; transform:none}
+  .where{
+    display:flex; align-items:center; gap:7px; margin:2px 0 6px;
+    padding-left:8px; border-left:2px solid var(--acc);
+    font-size:11.5px; letter-spacing:.05em; color:var(--dim);
+    font-variant-numeric:tabular-nums;
+  }
+  .where b{color:var(--ink); font-size:12.5px; font-weight:700; letter-spacing:.1em}
+  .where em{font-style:normal; color:#4f5b6b}
+  .where .pbar{flex:1; height:3px; background:#1b2330; border-radius:2px; overflow:hidden; min-width:24px}
+  .where .pbar i{display:block; height:100%; background:var(--acc); opacity:.75}
+  .hud{display:flex; gap:11px; align-items:center; flex-wrap:wrap;
+       font-size:12px; color:var(--dim); padding-bottom:7px}
+  .hud b{color:var(--ink); font-variant-numeric:tabular-nums}
+  .hud .bio b{color:var(--bio)}
+  .aprow{
+    display:flex; align-items:center; gap:7px; flex-wrap:nowrap; overflow:hidden;
+    font-size:12px; color:var(--dim);
+    border-bottom:1px solid var(--line); padding-bottom:9px; margin-bottom:2px;
+  }
+  .pips{display:inline-flex; gap:2px; vertical-align:middle}
+  .pip{width:6px; height:9px; border-radius:2px; background:#243040}
+  .pip.on{background:var(--acc); box-shadow:0 0 7px rgba(94,203,232,.55)}
+  .apnum{color:var(--ink); font-variant-numeric:tabular-nums; margin-left:2px}
+  .lvlchip{
+    font-size:10px; color:#ffd166; border:1px solid #5a4a22; background:#2b2415;
+    border-radius:4px; padding:0 4px; font-variant-numeric:tabular-nums; flex:none;
+  }
+  .lvlchip.max{color:#8ef0bb; border-color:#2c4a3d; background:#0d1a16}
+  .card{background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:9px 10px}
+  /* 卡片标题：比正文大半号、更亮，下面压一条细分割线，跟内容拉开层级 */
+  .card h4{
+    margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid rgba(124,135,152,.16);
+    font-size:13.5px; letter-spacing:.14em; color:#e9f1fa; font-weight:700;
+  }
+  .bar{height:6px; border-radius:3px; background:#1b2330; overflow:hidden; margin:5px 0}
+  .bar i{display:block; height:100%; border-radius:3px; transition:width .2s}
+  .row{display:flex; justify-content:space-between; align-items:center; gap:8px}
+  .tag{font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums}
+  .name{font-size:14px; font-weight:700}
+  button{
+    font:inherit; color:var(--ink); background:#1a2331; border:1px solid #2a3547;
+    border-radius:7px; padding:6px 10px; cursor:pointer; transition:.15s;
+  }
+  button:hover:not(:disabled){background:#22303f; border-color:#3d5470; transform:translateY(-1px)}
+  button:disabled{opacity:.38; cursor:not-allowed}
+  button.pri{background:linear-gradient(180deg,#2a6b7d,#1d4d5c); border-color:#3d8fa5; font-weight:700}
+  button.pri:hover:not(:disabled){background:linear-gradient(180deg,#35879c,#256072)}
+  button.buy{background:#2b2415; border-color:#5a4a22; color:var(--bio); font-size:11px; padding:3px 8px}
+  button.buy:hover:not(:disabled){background:#3a3018; border-color:#7d6529}
+  button.sm{padding:4px 8px; font-size:12px; border-radius:6px}
+  #roster{max-height:188px; overflow:auto; display:flex; flex-direction:column; gap:6px; min-height:60px}
+  .rm{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:7px;
+      border:1px solid transparent; cursor:pointer; background:#0e131a; font-size:12px}
+  .rm:hover{background:#151d27}
+  .rm.sel{border-color:var(--acc); background:#12222c}
+  .rm .idx{width:14px; text-align:center; color:#4a5568; font-size:10px}
+  .dot{width:11px; height:11px; border-radius:3px; flex:none}
+  .rm .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .mini{height:3px; width:42px; background:#1b2330; border-radius:2px; overflow:hidden; flex:none}
+  .mini i{display:block; height:100%}
+  #logBox{
+    flex:1; min-height:96px; overflow:auto; font-size:11.5px; line-height:1.65;
+    color:#8f9bab; background:#080b10; border:1px solid var(--line);
+    border-radius:8px; padding:7px 9px; font-variant-numeric:tabular-nums;
+  }
+  #logBox div:last-child{color:#cfdcea}
+  kbd{font:inherit; font-size:10px; background:#0c1117; border:1px solid #2a3547;
+      border-radius:4px; padding:1px 4px; color:var(--dim)}
+  .actions{display:flex; gap:8px}
+  .actions .pri{flex:1}
+
+  #overlay{
+    position:fixed; inset:0; background:rgba(5,8,12,.92); backdrop-filter:blur(7px);
+    display:none; align-items:center; justify-content:center; padding:24px; z-index:50; overflow:auto;
+  }
+  #overlay.on{display:flex}
+  .sheet{max-width:840px; width:100%}
+  .sheet h1{margin:0 0 4px; font-size:30px; letter-spacing:.2em}
+  .sheet h1 em{font-style:normal; color:var(--acc)}
+  .sheet p.sub{margin:0 0 18px; color:var(--dim); font-size:13px}
+  .grp{margin-bottom:15px}
+  .grp>label{font-size:11px; letter-spacing:.16em; color:var(--dim); display:block; margin-bottom:8px}
+  .opts{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .opt{
+    padding:12px; border-radius:10px; border:1px solid var(--line);
+    background:#0e131a; cursor:pointer; transition:.15s; text-align:center;
+  }
+  .opt:hover{border-color:#3d5470; background:#131b25}
+  .opt.on{border-color:var(--acc); background:#0f232c; box-shadow:0 0 0 1px var(--acc) inset}
+  .opt b{display:block; font-size:15px; margin-bottom:3px}
+  .opt small{color:var(--dim); font-size:11.5px; line-height:1.5; display:block}
+  .lib{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+  .lib .opt{padding:9px 10px; cursor:default}
+  .lib .opt:hover{border-color:var(--line); background:#0e131a}
+  .lib .opt.own{border-color:#2c4a3d; background:#0d1a16}
+  .lib .opt.no{opacity:.62}
+  .lib .opt b{font-size:13px; margin-bottom:2px}
+  .lib .opt small{font-size:10.5px; line-height:1.45}
+  .seedin{
+    width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--line);
+    background:#0b0f15; color:var(--ink); font:inherit; font-variant-numeric:tabular-nums;
+  }
+  .finish h2{font-size:26px; margin:0 0 8px}
+  .finish .big{font-size:15px; color:var(--dim); margin-bottom:6px}
+  .gain{font-size:20px; color:var(--bio); font-variant-numeric:tabular-nums; margin:14px 0 20px}
+  .keys{display:flex; gap:10px; flex-wrap:wrap; font-size:11px; color:var(--dim); margin-top:10px}
+  .keys span{background:#0d1319; border:1px solid var(--line); border-radius:5px; padding:3px 7px}
+
+  /* ── 主菜单 ───────────────────────────────────── */
+  .mn{max-width:520px; width:100%; margin:0 auto}
+  .mn h1{font-size:36px}
+  .menu{display:flex; flex-direction:column; gap:10px; margin-top:22px}
+  /* 菜单项：只有居中一行中文，不带序号也不带右侧注解 */
+  .mi{
+    display:flex; align-items:center; justify-content:center; padding:15px 18px; border-radius:11px;
+    border:1px solid var(--line); background:#0e131a; cursor:pointer;
+    transition:border-color .15s, background .15s, box-shadow .15s;
+    text-align:center;
+  }
+  .mi:hover{border-color:var(--acc); background:#0f232c; box-shadow:0 0 0 1px var(--acc) inset}
+  .mi b{font-size:16px; letter-spacing:.14em; font-weight:700; text-indent:.14em}  /* 补掉末字后的字距，视觉更居中 */
+  .mi.dis{border-color:#161d27; background:#0b0f14; cursor:not-allowed}
+  .mi.dis:hover{border-color:#161d27; background:#0b0f14; box-shadow:none}
+  .mi.dis b{color:#4d5766}
+  /* 纯说明列表（不是菜单项）：教程入口的课程一览、教程结束的系统提示 */
+  .notes{
+    margin:16px 0 0; font-size:12.5px; line-height:1.85; color:var(--dim);
+    display:grid; grid-template-columns:max-content 1fr; gap:5px 14px; align-items:baseline;
+  }
+  .notes b{color:#cbd5e2; font-weight:700; letter-spacing:.04em; white-space:nowrap}
+  .notes span{text-align:left}
+  .menu .foot{margin-top:6px; font-size:11px; color:var(--dim); letter-spacing:.04em}
+  /* 主菜单左下角版本号：只挂在菜单里，切到二级页就随 innerHTML 一起消失 */
+  .ver{
+    position:fixed; left:4px; bottom:6px; z-index:60; pointer-events:none;
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; letter-spacing:.1em; color:#525d6b; font-variant-numeric:tabular-nums;
+  }
+  .ver .dot{
+    width:6px; height:6px; border-radius:50%; background:var(--acc); opacity:.75;
+    box-shadow:0 0 8px rgba(94,203,232,.7);
+  }
+  .ver b{color:#8d9aab; font-weight:600; letter-spacing:.08em}
+  .ver em{font-style:normal; color:#3f4956}
+
+  /* ── 设置 ─────────────────────────────────────── */
+  .rng{
+    width:100%; -webkit-appearance:none; appearance:none; height:6px; border-radius:3px;
+    background:linear-gradient(90deg,var(--acc) 0%,var(--acc) var(--p,50%),#1c2531 var(--p,50%),#1c2531 100%);
+    outline:none; cursor:pointer;
+  }
+  .rng::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:#eaf2ff; border:2px solid var(--acc); cursor:pointer;
+    box-shadow:0 0 10px rgba(94,203,232,.55);
+  }
+  .rng::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%; background:#eaf2ff;
+    border:2px solid var(--acc); cursor:pointer;
+  }
+  .volrow{display:flex; align-items:center; gap:12px; margin-top:4px}
+  .volrow b{font-size:13px; color:var(--acc); font-variant-numeric:tabular-nums; width:40px; text-align:right}
+  .empty{
+    padding:34px 0; text-align:center; color:var(--dim); font-size:15px;
+    letter-spacing:.1em; border:1px dashed var(--line); border-radius:10px; margin:16px 0 20px;
+  }
+  /* 母巢经验条 */
+  .mexp{height:4px; border-radius:2px; background:rgba(255,255,255,.09); overflow:hidden; margin-top:5px}
+  .mexp i{display:block; height:100%; background:linear-gradient(90deg,#8b5cf6,#d8b4fe); transition:width .25s}
+  /* 感染物栏 */
+  .rgrid{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px}
+  .rl{
+    width:26px; height:26px; border-radius:7px; display:flex; align-items:center;
+    justify-content:center; font-size:12px; font-weight:700; color:#10131a;
+    position:relative; cursor:default; box-shadow:inset 0 0 0 1px rgba(255,255,255,.35);
+  }
+  .rl:hover{transform:translateY(-1px)}
+  .rl.new{animation:rlpop .5s ease-out}
+  @keyframes rlpop{0%{transform:scale(.4);box-shadow:0 0 0 8px rgba(255,255,255,.35)}100%{transform:scale(1)}}
+
+  /* ── 三个新面板的排版 ─────────────────────────── */
+  .side .card{background:#0c1118}
+  .panelhead{
+    display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid rgba(124,135,152,.16);
+    font-size:13.5px; letter-spacing:.14em; color:#e9f1fa; font-weight:700;
+  }
+  .panelhead .cnt{color:#b47cff; letter-spacing:0; font-variant-numeric:tabular-nums; font-weight:600}
+  /* 单位详情（右侧主面板，比原来大一号） */
+  #unitCard{padding:11px 12px}
+  #unitCard .uhead{display:flex; align-items:center; gap:9px; margin-bottom:2px}
+  #unitCard .uhead .dot{width:14px; height:14px; border-radius:4px}
+  #unitCard .uname{font-size:19px; font-weight:800; letter-spacing:.02em}
+  #unitCard .uid{font-size:12px; color:#5d6a7c}
+  #unitCard .uhp{font-size:14px; color:var(--dim); font-variant-numeric:tabular-nums; margin-left:auto}
+  #unitCard .ustats{display:flex; gap:14px; margin-top:8px; font-size:13px; color:var(--dim)}
+  #unitCard .ustats b{color:var(--ink); font-size:16px; font-weight:800; font-variant-numeric:tabular-nums}
+  #unitCard .unote{margin-top:7px; font-size:12px; line-height:1.55; color:#8b98a9}
+  /* 空态提示：比正文还灰一档，"这里还没东西"的意味更强 */
+  .empty-hint{color:#57616e}
+  #unitCard .empty-hint{font-size:13px; line-height:1.7; color:#57616e}
+  /* 遗物：稀有度描边 */
+  .rl{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35), 0 0 0 2px var(--rc,#2a3547)}
+  .rl .rnum{
+    position:absolute; right:-2px; top:-4px; font-size:8px; font-weight:800;
+    color:#0a0d12; background:var(--rc,#9aa7b8); border-radius:3px; padding:0 2px;
+  }
+  .pairs{margin-top:8px; display:flex; flex-direction:column; gap:5px}
+  .pair{
+    font-size:11.5px; line-height:1.5; color:#cbb6ff;
+    background:rgba(180,124,255,.09); border:1px solid rgba(180,124,255,.3);
+    border-radius:7px; padding:4px 7px;
+  }
+  .pair b{color:#e2cfff}
+  .pair.off{color:#5f6a7a; background:rgba(255,255,255,.02); border-color:#1e2733}
+  .pair.off b{color:#77808d}
+  /* 新手指导：先是一条浮在画面下方的对话框，点「确定」后缩小并平移到左上角，变成任务框。
+     配色刻意走暖琥珀（旧纸/提示条），和冷蓝黑的游戏 UI 拉开距离——一眼能看出"这是教程在说话" */
+  #tutBox{
+    position:absolute; z-index:6; display:none;
+    left:0; right:0; margin-inline:auto; width:min(700px,90%);
+    bottom:146px; padding:12px 16px 13px;
+    background:linear-gradient(180deg,rgba(38,29,17,.985),rgba(22,17,9,.985));
+    border:1px solid #6b5227; border-radius:12px;
+    box-shadow:0 22px 54px -20px #000, 0 0 0 1px rgba(232,180,100,.11) inset;
+    will-change:transform, opacity;
+  }
+  #tutBox.on{display:block}
+  #tutBox.docked{
+    left:12px; right:auto; margin-left:0; width:252px;
+    top:12px; bottom:auto; padding:9px 11px 10px;
+    border-color:#57421f;
+    box-shadow:0 16px 38px -18px #000, 0 0 0 1px rgba(232,180,100,.08) inset;
+  }
+  #tutBox.docked.done{
+    border-color:#3f7d5d;
+    box-shadow:0 16px 38px -18px #000, 0 0 0 1px rgba(120,235,180,.18) inset;
+  }
+  /* 宽版：左边文字、右边确定 */
+  .tbw{display:flex; align-items:center; gap:16px}
+  .tbw .tbmain{flex:1; min-width:0}
+  .tbk{font-size:10.5px; letter-spacing:.18em; color:#e0a95c}
+  .tbn{font-size:17px; font-weight:800; letter-spacing:.05em; margin:2px 0 4px; color:#ffedcf}
+  .tbg{font-size:13.5px; color:#ffd79a; line-height:1.5}
+  .tbh{font-size:12px; color:#bda887; line-height:1.55; margin-top:5px}
+  .tbok{
+    flex:none; padding:11px 26px; font-size:14px; font-weight:700; letter-spacing:.1em;
+    border-radius:9px; border:1px solid #7d5c2a; background:#37270f; color:#ffdca6; cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  .tbok:hover{background:#48330f; border-color:#a67a34}
+  /* 迷你版：左上角任务框 */
+  .tbm{display:none}
+  #tutBox.docked .tbw{display:none}
+  #tutBox.docked .tbm{display:block}
+  .tbm .tbn{font-size:13.5px; margin:2px 0 3px}
+  .tbm .tbg{font-size:11.5px; color:#ecd6b3; line-height:1.5}
+  .tbst{
+    width:100%; margin-top:8px; padding:6px; font-size:11.5px; border-radius:7px;
+    border:1px solid #4b3a1e; background:#1c1509; color:#a58d68; cursor:default;
+  }
+  .tbst.done{border-color:#3f7d5d; background:#10241b; color:#a7f3c9; cursor:pointer}
+  /* 没完成时任务框不挡鼠标，地图左上角照样能拖 */
+  #tutBox.docked:not(.done){pointer-events:none}
+  /* 开局向导：一次只问一组 */
+  .wiz{max-width:620px; width:100%; margin:0 auto}
+  .wiz .bar{display:flex; gap:6px; margin:0 0 18px}
+  .wiz .bar i{height:3px; flex:1; border-radius:2px; background:#1a222d}
+  .wiz .bar i.on{background:var(--acc); box-shadow:0 0 10px rgba(94,203,232,.55)}
+  .wiz .kick{font-size:10.5px; letter-spacing:.22em; color:var(--acc); margin-bottom:7px}
+  .wiz h2{font-size:23px; margin:0 0 6px; letter-spacing:.05em}
+  .wiz p.lead{color:var(--dim); font-size:12.5px; margin:0 0 18px; line-height:1.65}
+  .wiz .opts{grid-template-columns:repeat(3,1fr)}
+  .wiz .opt{padding:14px}
+  .wiz .btns{display:flex; gap:10px; align-items:center; margin-top:22px}
+  .wiz .btns .grow{flex:1}
+  .wiz .grp{margin-top:14px}
+  .wiz .sum{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px}
+  .wiz .sum div{
+    flex:1; min-width:150px; padding:11px 13px; border-radius:9px;
+    border:1px solid var(--line); background:#0e131a;
+  }
+  .wiz .sum small{display:block; font-size:10.5px; letter-spacing:.14em; color:var(--dim); margin-bottom:4px}
+  .wiz .sum b{font-size:14px}
+  .wiz .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px}
+  .wiz .chips span{
+    font-size:11px; padding:3px 8px; border-radius:20px;
+    border:1px solid #23303e; background:#0d141c; color:#8fa0b4;
+  }
+  .wiz .chips span.own{border-color:#2c4a3d; color:#8ef0bb; background:#0d1a16}
+  #logBox{min-height:88px; background:#080b10}
+  .actions{padding-top:2px}
+  /* ── 手机版：顶栏 / 底栏 / 抽屉（桌面端隐藏）────────── */
+  #mtop,#mbar,#mscrim{display:none}
+  #mtop{
+    position:fixed; left:0; right:0; top:0; z-index:42;
+    padding:calc(7px + env(safe-area-inset-top)) 12px 7px;
+    background:linear-gradient(180deg,rgba(10,13,18,.97),rgba(10,13,18,.82) 72%,transparent);
+    align-items:center; gap:10px;
+  }
+  #mtop .mleft{flex:1; min-width:0}
+  #mWhere{
+    font-size:12.5px; font-weight:700; letter-spacing:.04em; color:#e9f1fa;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #mtop .mstats{display:flex; gap:11px; margin-top:2px; font-size:11px; color:var(--dim)}
+  #mtop .mstats b{color:var(--ink); font-variant-numeric:tabular-nums}
+  #mMenu{
+    flex:none; width:42px; height:42px; padding:0; font-size:17px; border-radius:10px;
+    background:rgba(20,28,38,.9);
+  }
+  #mbar{
+    position:fixed; left:0; right:0; bottom:0; z-index:42;
+    padding:7px 8px calc(7px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,rgba(10,13,18,.99),rgba(10,13,18,.9));
+    border-top:1px solid rgba(124,135,152,.16);
+    gap:6px; align-items:center;
+  }
+  #mbar button{
+    flex:1 1 0; min-width:0; min-height:46px; padding:8px 2px; font-size:12.5px;
+    border-radius:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #mbar #mEnd{flex:1.5; font-size:13.5px; font-weight:700}
+  #mbar #mSkill:disabled{opacity:.35}
+  #mbar #mSkill.ready{border-color:#3d8fa5; color:#8ef0bb}
+  #mscrim{
+    display:block;
+    position:fixed; inset:0; z-index:45; background:rgba(4,7,11,.55);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  #mscrim.on{opacity:1; pointer-events:auto}
+  /* ── 突变层：三张随机卡片，花本局生物质买 ───────────── */
+  .mut{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .mut .opt{padding:13px 14px; text-align:left; cursor:default; display:flex; flex-direction:column; gap:7px}
+  .mut .opt:hover{border-color:var(--line); background:#0e131a}
+  .mut .opt.bought{opacity:.5}
+  .mut .mt{font-size:16px; font-weight:800}
+  .mut .md{font-size:12px; color:#93a1b3; line-height:1.55; min-height:40px}
+  .mut .mc{font-size:13px; color:var(--bio); font-variant-numeric:tabular-nums; margin-top:auto}
+  .mut .mb{padding:7px 10px; font-size:13px; width:100%}
+  .mut select{
+    width:100%; padding:6px 8px; border-radius:7px; border:1px solid var(--line);
+    background:#0b0f15; color:var(--ink); font:inherit; font-size:12px;
+  }
+  @media (max-width:1280px){
+    #app{grid-template-columns:258px minmax(0,1fr) 300px; gap:9px; padding:9px}
+    #unitCard .uname{font-size:17px}
+  }
+
+  /* ══ 手机 / 窄屏：地图铺满，侧栏改成底部抽屉 ══════════ */
+  @media (max-width:900px){
+    body{overscroll-behavior:none; -webkit-tap-highlight-color:transparent}
+    #app{display:block; height:100dvh; padding:0; gap:0}
+    #stage{
+      position:fixed; inset:0; border:0; border-radius:0; box-shadow:none;
+      padding:calc(56px + env(safe-area-inset-top)) 0 calc(64px + env(safe-area-inset-bottom));
+    }
+    canvas{height:100%}
+    #mtop{display:flex}
+    #mbar{display:flex}
+    #mtop{
+      padding-left:calc(12px + env(safe-area-inset-left));
+      padding-right:calc(12px + env(safe-area-inset-right));
+    }
+    #mbar{
+      padding-left:calc(8px + env(safe-area-inset-left));
+      padding-right:calc(8px + env(safe-area-inset-right));
+    }
+    canvas,#mtop,#mbar{-webkit-user-select:none; user-select:none}
+    body{-webkit-touch-callout:none}
+    #hint{
+      top:calc(58px + env(safe-area-inset-top)); font-size:11px; max-width:92%; padding:3px 10px;
+      opacity:0; transition:opacity .2s;
+    }
+    #hint.show{opacity:1}
+    #zoombar{display:none}
+    #hoverbar{
+      left:calc(8px + env(safe-area-inset-left));
+      right:calc(8px + env(safe-area-inset-right));
+      bottom:calc(70px + env(safe-area-inset-bottom));
+      padding:7px 10px 8px; border-radius:10px;
+      opacity:0; transform:translateY(10px); transition:opacity .16s, transform .16s;
+    }
+    #hoverbar.show{opacity:1; transform:none}
+    .hb-name{font-size:15px}
+    .hb-sub{font-size:11px}
+    .hb-stats{font-size:12.5px; gap:10px; margin-top:4px}
+    .hb-stats b{font-size:14px}
+    .hb-hint{display:none}
+    .hb-bar{height:4px; margin-top:5px}
+    .side{
+      position:fixed; left:0; right:0; bottom:0; z-index:46;
+      max-height:74dvh; min-height:0;
+      border-radius:16px 16px 0 0;
+      padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+      transform:translateY(112%); transition:transform .24s ease;
+      box-shadow:0 -18px 50px -22px #000; overflow:auto;
+    }
+    .side::before{
+      content:""; flex:none; width:38px; height:4px; border-radius:2px;
+      background:#33465c; margin:0 auto 8px;
+    }
+    .side.open{transform:none}
+    .side .brand,.side .where,.side .hud,.side .aprow,.side .actions{display:none}
+    .side.left,.side.right{gap:10px}
+    #roster{max-height:none}
+    #logBox{min-height:120px; max-height:32dvh}
+    #tutBox{bottom:calc(152px + env(safe-area-inset-bottom)); width:calc(100% - 20px); padding:10px 12px 11px}
+    #tutBox.docked{left:8px; width:214px; top:calc(58px + env(safe-area-inset-top))}
+    #overlay{
+      padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+      padding-top:calc(16px + env(safe-area-inset-top));
+      align-items:flex-start;
+    }
+    .sheet{max-width:100%}
+    .sheet h1{font-size:24px}
+    .mn h1{font-size:28px}
+    .opts{grid-template-columns:1fr}
+    .lib{grid-template-columns:1fr 1fr}
+    .mut{grid-template-columns:1fr}
+    .wiz .opts{grid-template-columns:1fr}
+    .wiz .sum div{min-width:100%}
+    .wiz .btns{flex-wrap:wrap}
+    .wiz .btns .pri{width:100%}
+    .notes{grid-template-columns:1fr; gap:2px 0}
+    .notes span{margin-bottom:6px}
+    kbd{display:none}
+    button{min-height:40px}
+    #overlay button{min-height:44px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 左：战况 -->
+  <aside class="side left">
+    <div class="brand">腐潮<span>ROT TIDE</span><button class="mute" id="btnMute" title="静音 (M)">♪</button></div>
+
+    <div class="where" id="hWhere">废弃实验室 · 1-1</div>
+
+    <div class="hud">
+      <span>回合 <b id="hTurn">1</b>/<b id="hTotal">16</b></span>
+      <span>感染 <b id="hInf">0</b></span>
+      <span class="bio">生物质 <b id="hBio">0</b></span>
+    </div>
+    <div class="aprow">
+      <span>腐能</span><span class="pips" id="hAp"></span><span class="apnum" id="hApNum">5/5</span>
+    </div>
+    <div class="card" id="motherCard"></div>
+    <div class="card" id="relicBar"></div>
+  </aside>
+
+  <!-- 中：地图 -->
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hint">点击丧尸选中 → 点蓝格移动 / 点敌人攻击</div>
+    <div id="hoverbar">
+      <div class="hb-top">
+        <span class="hb-name" id="hbName"></span>
+        <span class="hb-sub" id="hbSub"></span>
+      </div>
+      <div class="hb-stats" id="hbStats"></div>
+      <div class="hb-bar"><i id="hbFill"></i></div>
+      <div class="hb-hint" id="hbHint"></div>
+    </div>
+    <div id="tutBox">
+      <div class="tbw">
+        <div class="tbmain">
+          <div class="tbk" id="tbK">新手教程</div>
+          <div class="tbn" id="tbN"></div>
+          <div class="tbg" id="tbG"></div>
+          <div class="tbh" id="tbH"></div>
+        </div>
+        <button class="tbok" id="tbOk">确定</button>
+      </div>
+      <div class="tbm">
+        <div class="tbk" id="tmK">新手任务</div>
+        <div class="tbn" id="tmN"></div>
+        <div class="tbg" id="tmG"></div>
+        <button class="tbst" id="tmSt">进行中</button>
+      </div>
+    </div>
+    <div id="zoombar">
+      <button id="zOut" title="缩小（滚轮下）">−</button>
+      <span class="zval" id="zVal">100%</span>
+      <button id="zIn" title="放大（滚轮上）">＋</button>
+      <button id="zFit" title="整张地图铺满视野">适配</button>
+    </div>
+  </div>
+
+  <!-- 右：单位 / 队伍 / 战报 -->
+  <aside class="side right">
+    <div class="card" id="unitCard"></div>
+    <div class="card">
+      <h4 class="panelhead">我方 <span class="cnt" id="rosterCnt">0</span></h4>
+      <div id="roster"></div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;flex:1;min-height:120px">
+      <h4 class="panelhead">战报</h4>
+      <div id="logBox"></div>
+    </div>
+    <div class="actions">
+      <button class="pri" id="btnEnd">结束回合 <kbd>空格</kbd></button>
+      <button id="btnMenu" title="暂停菜单 (Esc)">设置</button>
+    </div>
+  </aside>
+</div>
+
+<div id="overlay"><div class="sheet" id="sheet"></div></div>
+
+<!-- 手机版：顶栏 / 底部操作栏 / 抽屉遮罩（桌面端由 CSS 隐藏） -->
+<div id="mscrim"></div>
+<header id="mtop">
+  <div class="mleft">
+    <div id="mWhere">废弃实验室 · 1-1</div>
+    <div class="mstats">
+      <span>回合 <b id="mTurn">1</b>/<b id="mTotal">16</b></span>
+      <span>腐能 <b id="mAp">5/5</b></span>
+      <span>生物质 <b id="mBio">0</b></span>
+    </div>
+  </div>
+  <button id="mMenu" title="暂停菜单">☰</button>
+</header>
+<nav id="mbar">
+  <button data-sheet="left">母巢</button>
+  <button data-sheet="right">队伍</button>
+  <button id="mSkill" disabled>技能</button>
+  <button class="pri" id="mEnd">结束回合</button>
+</nav>
+
+<!-- 游戏规则全部在这一个文件里，纯浏览器运行，不需要服务器 -->
+<script src="engine.js"></script>
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════
+   音效引擎 —— 全部用 WebAudio 现场合成，不依赖任何音频文件
+   ══════════════════════════════════════════════════════════════ */
+const Snd = {
+  ac: null, bus: null, ready: false, muted: false, noiseBuf: null,
+  combo: 0, lastKill: 0, vol: 0.85,
+  init() {
+    if (this.ready) { if (this.ac.state === "suspended") this.ac.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { this.ac = new AC(); } catch (e) { return; }
+    this.bus = this.ac.createGain();
+    this.bus.gain.value = this.vol;
+    this.bus.connect(this.ac.destination);
+    // 一点反馈延迟，让爆裂声有"空间感"
+    const d = this.ac.createDelay(0.3); d.delayTime.value = 0.085;
+    const fb = this.ac.createGain(); fb.gain.value = 0.16;
+    const wet = this.ac.createGain(); wet.gain.value = 0.3;
+    this.bus.connect(d); d.connect(fb); fb.connect(d); d.connect(wet); wet.connect(this.ac.destination);
+    // 预生成 1 秒白噪
+    const len = this.ac.sampleRate;
+    const buf = this.ac.createBuffer(1, len, this.ac.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    this.noiseBuf = buf;
+    this.ready = true;
+    if (this.ac.state === "suspended") this.ac.resume();
+  },
+  get t() { return this.ac.currentTime; },
+  // 音量（0~1）实时生效并记住
+  setVol(v) {
+    this.vol = Math.max(0, Math.min(1, +v || 0));
+    if (this.bus && this.ac) {
+      const g = this.bus.gain;
+      // 直接赋值而非排一个渐变：音频上下文被挂起（未交互）时渐变不会推进，音量会"点了没反应"
+      try { g.cancelScheduledValues(this.ac.currentTime); } catch (e) {}
+      g.value = this.vol;
+    }
+    try { localStorage.setItem("rottide.vol", String(this.vol)); } catch (e) {}
+  },
+  get volPct() { return Math.round(this.vol * 100); },
+  // 振荡器音：可选频率滑动
+  tone({ f = 440, f2 = null, dur = 0.2, type = "sine", g = 0.2, at = 0, dest = null }) {
+    if (!this.ready || this.muted) return;
+    const t0 = this.t + at;
+    const o = this.ac.createOscillator(); o.type = type;
+    o.frequency.setValueAtTime(f, t0);
+    if (f2) o.frequency.exponentialRampToValueAtTime(Math.max(20, f2), t0 + dur);
+    const gn = this.ac.createGain();
+    gn.gain.setValueAtTime(0.0001, t0);
+    gn.gain.exponentialRampToValueAtTime(g, t0 + Math.min(0.012, dur * 0.2));
+    gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(gn).connect(dest || this.bus);
+    o.start(t0); o.stop(t0 + dur + 0.03);
+  },
+  // 噪声音：带滤波器扫频
+  noise({ dur = 0.2, type = "bandpass", f = 2000, f2 = null, q = 1, g = 0.2, at = 0 }) {
+    if (!this.ready || this.muted) return;
+    const t0 = this.t + at;
+    const s = this.ac.createBufferSource(); s.buffer = this.noiseBuf;
+    const bp = this.ac.createBiquadFilter(); bp.type = type; bp.Q.value = q;
+    bp.frequency.setValueAtTime(f, t0);
+    if (f2) bp.frequency.exponentialRampToValueAtTime(Math.max(60, f2), t0 + dur);
+    const gn = this.ac.createGain();
+    gn.gain.setValueAtTime(0.0001, t0);
+    gn.gain.exponentialRampToValueAtTime(g, t0 + Math.min(0.008, dur * 0.15));
+    gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    s.connect(bp).connect(gn).connect(this.bus);
+    s.start(t0); s.stop(t0 + dur + 0.02);
+  },
+
+  /* 击杀 —— 本作最重要的音效：低频冲击 + 撕裂扫频 + 溅射 + 连杀升调 */
+  kill() {
+    if (!this.ready || this.muted) return;
+    const now = performance.now();
+    this.combo = (now - this.lastKill < 1400) ? Math.min(this.combo + 1, 6) : 0;
+    this.lastKill = now;
+    const pitch = Math.pow(2, this.combo / 12);      // 连杀时整体升调
+
+    // 1) 低频冲击：150 → 36Hz，落地感
+    this.tone({ f: 150 * pitch, f2: 36, dur: 0.30, type: "sine", g: 0.5 });
+    // 2) 撕裂：带通噪声从亮到闷
+    this.noise({ dur: 0.26, type: "bandpass", f: 3000 * pitch, f2: 230, q: 1.4, g: 0.32 });
+    // 3) 溅射：短促低通噪声
+    this.noise({ dur: 0.13, type: "lowpass", f: 900, f2: 200, q: 0.8, g: 0.26, at: 0.01 });
+    // 4) 连杀奖励音：清脆的金属"叮"，音高逐级上升
+    if (this.combo > 0) {
+      this.tone({ f: 880 * pitch, dur: 0.22, type: "triangle", g: 0.13, at: 0.02 });
+      this.tone({ f: 1320 * pitch, dur: 0.16, type: "sine", g: 0.07, at: 0.03 });
+    }
+  },
+  hit() { this.noise({ dur: 0.09, type: "bandpass", f: 1200, f2: 400, q: 1, g: 0.16 }); },
+  hurt() {
+    this.tone({ f: 220, f2: 70, dur: 0.2, type: "sawtooth", g: 0.13 });
+    this.noise({ dur: 0.14, type: "lowpass", f: 600, f2: 160, g: 0.14 });
+  },
+  move() { this.noise({ dur: 0.05, type: "lowpass", f: 380 + Math.random() * 200, g: 0.09 }); },
+  hatch() {
+    this.tone({ f: 180, f2: 520, dur: 0.22, type: "sine", g: 0.16 });
+    this.noise({ dur: 0.3, type: "bandpass", f: 500, f2: 1800, q: 0.9, g: 0.13, at: 0.02 });
+  },
+  reinforce() {
+    [1046, 1568, 2093].forEach((f, i) =>
+      this.tone({ f, dur: 0.18, type: "triangle", g: 0.1, at: i * 0.05 }));
+  },
+  turn() {
+    this.tone({ f: 420, dur: 0.1, type: "square", g: 0.06 });
+    this.tone({ f: 300, dur: 0.14, type: "square", g: 0.06, at: 0.09 });
+  },
+  win() { [523, 659, 784, 1046].forEach((f, i) => this.tone({ f, dur: 0.34, type: "triangle", g: 0.13, at: i * 0.13 })); },
+  lose() {
+    this.tone({ f: 160, f2: 45, dur: 1.1, type: "sawtooth", g: 0.16 });
+    this.tone({ f: 80, f2: 30, dur: 1.3, type: "sine", g: 0.2, at: 0.1 });
+  },
+  unlock() { [659, 880, 1175, 1568].forEach((f, i) => this.tone({ f, dur: 0.22, type: "sine", g: 0.11, at: i * 0.07 })); },
+  click() { this.tone({ f: 700, dur: 0.05, type: "sine", g: 0.05 }); },
+  err() { this.tone({ f: 200, f2: 140, dur: 0.16, type: "square", g: 0.08 }); }
+};
+// 读取上次记住的音量
+try {
+  const _v = parseFloat(localStorage.getItem("rottide.vol"));
+  if (isFinite(_v)) Snd.vol = Math.max(0, Math.min(1, _v));
+} catch (e) {}
+document.addEventListener("pointerdown", () => Snd.init(), { once: true });
+document.addEventListener("keydown", () => Snd.init(), { once: true });
+
+/* ══════════════════════════════════════════════════════════════ */
+/* ── 相机：地图可以拖动、缩放 ──────────────────────────
+ * TS 是世界坐标里的固定格宽；缩放全交给 cam.z。
+ * cam.x / cam.y 是视野左上角对应的世界坐标。 */
+const TS = 40;
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const ZMIN = 0.3, ZMAX = 2.6;
+let cam = { x: 0, y: 0, z: 1 };
+let viewW = 800, viewH = 600;
+const terr = (t) => (S && S.meta && S.meta.terrain && S.meta.terrain[t]) ||
+  { name: "?", color: "#1e242e", pat: "street", cost: 1, desc: "" };
+
+let S = null;          // 服务端状态
+let PROF = null;       // 存档（累计生物质 / 解锁）
+let sel = null;        // 选中单位 uid
+let mode = "idle";     // idle | pick_scan
+let pickUnit = null;
+let loading = false;
+let pending = null;    // 排队中的动作
+let hoverCell = null;
+let lastHpTally = null;
+
+// ── 工具 ────────────────────────────────────────────
+function hash(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+// 母巢占 2×2，四格都能点中它
+const unitAt = (x, y) => (S.units || []).find(u =>
+  u.size === 2 ? (x >= u.x && x < u.x + 2 && y >= u.y && y < u.y + 2)
+               : (u.x === x && u.y === y)) || null;
+const byId = (uid) => (S.units || []).find(u => u.uid === uid) || null;
+const cocoonAt = (x, y) => (S.cocoons || []).find(c => c.x === x && c.y === y) || null;
+const ratio = (a, b) => b > 0 ? Math.max(0, Math.min(1, a / b)) : 0;
+const teamCount = () => S.units.filter(u => u.side === "z" && !u.mother).length;
+const isMobile = () => window.matchMedia("(max-width:900px)").matches;
+
+// 手机端：底部信息条与顶部提示只在需要时露出来，别长期占着地图
+let hoverBarTimer = 0;
+function showHoverBar() {
+  const b = document.getElementById("hoverbar");
+  if (!b) return;
+  b.classList.add("show");
+  clearTimeout(hoverBarTimer);
+  hoverBarTimer = setTimeout(() => b.classList.remove("show"), 4500);
+}
+
+// ── 画布尺寸 / 相机 ─────────────────────────────────
+function resize() {
+  // #stage 底部有内边距给常驻信息条，所以不能用 stage.clientHeight 直接当画布高度
+  const stage = document.getElementById("stage");
+  const cs = getComputedStyle(stage);
+  const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+  const padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+  viewW = Math.max(220, Math.round(stage.clientWidth - padL - padR));
+  viewH = Math.max(180, Math.round(stage.clientHeight - padT - padB));
+  cv.width = Math.round(viewW * dpr);
+  cv.height = Math.round(viewH * dpr);
+  clampCam();
+}
+
+function clampCam() {
+  if (!S) return;
+  const vw = viewW / cam.z, vh = viewH / cam.z;
+  const ww = S.w * TS, wh = S.h * TS;
+  cam.x = ww <= vw ? (ww - vw) / 2 : Math.max(0, Math.min(ww - vw, cam.x));
+  cam.y = wh <= vh ? (wh - vh) / 2 : Math.max(0, Math.min(wh - vh, cam.y));
+}
+
+/** 把整张地图铺满视野并居中 */
+function fitView() {
+  if (!S) return;
+  const pad = 10;
+  const z = Math.min((viewW - pad * 2) / (S.w * TS), (viewH - pad * 2) / (S.h * TS));
+  cam.z = Math.max(ZMIN, Math.min(ZMAX, z));
+  cam.x = (S.w * TS - viewW / cam.z) / 2;
+  cam.y = (S.h * TS - viewH / cam.z) / 2;
+  clampCam();
+  updateZoomLabel();
+  draw();
+}
+
+/** 把镜头拉到母巢附近（换层时用），保持当前缩放 */
+function centerOnMother() {
+  if (!S) return;
+  const m = (S.units || []).find(u => u.mother);
+  if (!m) return;
+  const cx = (m.x + 1) * TS, cy = (m.y + 1) * TS;
+  cam.x = cx - viewW / (2 * cam.z);
+  cam.y = cy - viewH / (2 * cam.z);
+  clampCam();
+}
+
+function setZoom(z, mx, my) {
+  if (!S) return;
+  const nz = Math.max(ZMIN, Math.min(ZMAX, z));
+  if (Math.abs(nz - cam.z) < 1e-4) return;
+  const sx = mx === undefined ? viewW / 2 : mx;
+  const sy = my === undefined ? viewH / 2 : my;
+  const wx = cam.x + sx / cam.z;
+  const wy = cam.y + sy / cam.z;
+  cam.z = nz;
+  cam.x = wx - sx / cam.z;
+  cam.y = wy - sy / cam.z;
+  clampCam();
+  updateZoomLabel();
+  draw();
+}
+
+function updateZoomLabel() {
+  const el = document.getElementById("zVal");
+  if (el) el.textContent = Math.round(cam.z * 100) + "%";
+}
+
+// ── 动画系统 ────────────────────────────────────────
+// 所有动画共享一个逻辑时钟 clock，按 [t0, t0+dur) 的时间窗取进度。
+// 这样"串行排布"只需给每个动画递增 t0，无需状态机。
+let anims = [];
+let clock = 0;
+let rafId = null;
+let lastTs = 0;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const easeOut = p => 1 - Math.pow(1 - p, 3);
+const easeIn = p => p * p;
+
+function startLoop() {
+  if (rafId != null) return;
+  lastTs = 0;
+  rafId = requestAnimationFrame(loop);
+}
+function loop(ts) {
+  if (!lastTs) lastTs = ts;
+  clock += Math.min(0.05, (ts - lastTs) / 1000);   // 卡帧时钳制，避免动画跳跃
+  lastTs = ts;
+  if (anims.length) anims = anims.filter(a => clock < a.t0 + a.dur + 0.03);
+  draw();
+  if (anims.length) rafId = requestAnimationFrame(loop);
+  else { rafId = null; draw(); }
+}
+// 静止时也低频重绘一次，保住尸茧的呼吸感
+setInterval(() => { if (!anims.length && rafId == null && S) draw(); }, 600);
+
+// 取单位此刻应画在哪个格子（浮点）。倒序查：新动画优先，连按时不会视觉回退。
+function unitPos(u) {
+  for (let i = anims.length - 1; i >= 0; i--) {
+    const a = anims[i];
+    if (a.k !== "mv" || a.uid !== u.uid) continue;
+    const p = (clock - a.t0) / a.dur;
+    if (p <= 0) return [a.fx, a.fy];
+    if (p >= 1) continue;
+    const path = (a.path && a.path.length > 1) ? a.path : [[a.fx, a.fy], [a.tx, a.ty]];
+    const seg = path.length - 1;
+    const t = easeOut(p) * seg;
+    const i2 = Math.min(seg - 1, Math.floor(t));
+    const f = t - i2;
+    const [x0, y0] = path[i2], [x1, y1] = path[i2 + 1];
+    return [x0 + (x1 - x0) * f, y0 + (y1 - y0) * f];
+  }
+  return [u.x, u.y];
+}
+// 该格此刻的受击白闪强度 0~1
+function hitFlash(x, y) {
+  for (let i = anims.length - 1; i >= 0; i--) {
+    const a = anims[i];
+    if (a.k !== "hit" || a.x !== x || a.y !== y) continue;
+    const p = (clock - a.t0) / a.dur;
+    if (p >= 0 && p < 1) return (1 - p) * (1 - p);
+  }
+  return 0;
+}
+function spawnPop(x, y) {              // 新生单位的放大入场 0~1
+  for (let i = anims.length - 1; i >= 0; i--) {
+    const a = anims[i];
+    if (a.k !== "sp" || a.x !== x || a.y !== y) continue;
+    const p = (clock - a.t0) / a.dur;
+    if (p >= 0 && p < 1) return easeOut(p);
+  }
+  return 1;
+}
+
+// 把一批服务端事件排成动画时间轴。serial=true 时逐个播放（回合结束用）。
+function enqueue(evs, serial) {
+  if (!evs || !evs.length) return 0;
+  let cursor = clock, end = clock;
+  const add = [];
+  for (const e of evs) {
+    if (e.t === "move") {
+      const steps = Math.max(1, (e.path ? e.path.length : 2) - 1);
+      const dur = serial ? clamp(0.10 + steps * 0.13, 0.16, 0.46)
+                         : clamp(0.05 + steps * 0.075, 0.09, 0.28);
+      add.push({ k: "mv", uid: e.uid, fx: e.fx, fy: e.fy, tx: e.tx, ty: e.ty,
+                 path: e.path, t0: cursor, dur });
+      cursor += dur + (serial ? 0.035 : 0.01);
+      end = Math.max(end, cursor);
+    } else if (e.t === "dmg") {
+      const len = Math.hypot(e.tx - e.sx, e.ty - e.sy);
+      const boltDur = e.melee ? 0.12 : clamp(0.10 + len * 0.011, 0.12, 0.24);
+      add.push({ k: "bolt", sx: e.sx, sy: e.sy, tx: e.tx, ty: e.ty,
+                 t0: cursor, dur: boltDur, melee: e.melee, side: e.side });
+      const hitT = cursor + boltDur * 0.8;
+      add.push({ k: "hit", x: e.tx, y: e.ty, t0: hitT, dur: 0.30 });
+      add.push({ k: "num", x: e.tx, y: e.ty, txt: "-" + e.dmg, t0: hitT, dur: 0.85,
+                 color: e.side === "z" ? "#ff8a8a" : "#ffdf8a" });
+      if (e.dead) {
+        add.push({ k: "die", x: e.tx, y: e.ty, t0: hitT + 0.04, dur: 0.55,
+                   short: e.short, color: e.color, side: e.side, mother: e.mother });
+      }
+      cursor = hitT + (e.dead ? 0.46 : 0.26);
+      end = Math.max(end, cursor);
+    } else if (e.t === "spawn") {
+      add.push({ k: "sp", x: e.x, y: e.y, t0: cursor, dur: 0.40 });
+      cursor += 0.06;
+      end = Math.max(end, cursor);
+    }
+  }
+  anims.push(...add);
+  // 单次结算的动画总长封顶，避免"七八个人类逐个走"拖成四五秒
+  const LIMIT = 2.4;
+  const total = end - clock;
+  if (total > LIMIT) {
+    const k = LIMIT / total;
+    for (const a of add) { a.t0 = clock + (a.t0 - clock) * k; a.dur *= k; }
+    end = clock + LIMIT;
+  }
+  startLoop();
+  return Math.max(0, end - clock);
+}
+
+function waitAnim(sec) {
+  return new Promise(res => setTimeout(res, Math.max(0, sec * 1000)));
+}
+
+// ── 绘制 ────────────────────────────────────────────
+function draw() {
+  if (!S) return;
+  const W = S.w, H = S.h;
+  // 屏幕空间：先铺一层底色（地图比视野小时四周不会是脏色）
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#06090d";
+  ctx.fillRect(0, 0, viewW, viewH);
+  // 世界空间：之后所有绘制都按格坐标来，缩放/平移由这个矩阵负责
+  ctx.setTransform(dpr * cam.z, 0, 0, dpr * cam.z,
+                   -cam.x * cam.z * dpr, -cam.y * cam.z * dpr);
+
+  // 1. 地形 + 三层迷雾
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const t = S.grid[y][x], seen = S.seen[y][x], vis = S.visible[y][x];
+      const px = x * TS, py = y * TS;
+      if (!seen) {
+        // 未探索：给一层极淡的格子纹理，让玩家看得出"地图有多大、这里还没探"
+        ctx.fillStyle = "#0a0e14";
+        ctx.fillRect(px, py, TS, TS);
+        ctx.strokeStyle = "rgba(120,160,205,.055)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + .5, py + .5, TS - 1, TS - 1);
+        continue;
+      }
+      const T = terr(t);
+      const pat = T.pat || "street";
+      ctx.globalAlpha = vis ? 1 : 0.62;
+      ctx.fillStyle = T.color;
+      ctx.fillRect(px, py, TS, TS);
+
+      if (pat === "wall") {
+        // 建筑：亮面 + 左/上高光 + 右/下投影 → 立体砖块，最容易从街道里跳出来
+        ctx.fillStyle = "rgba(255,255,255,.055)";
+        ctx.fillRect(px + 1, py + 1, TS - 2, TS - 2);
+        ctx.fillStyle = "rgba(190,215,245,.30)";   // 顶边高光
+        ctx.fillRect(px, py, TS, Math.max(2, TS * .11));
+        ctx.fillStyle = "rgba(160,190,225,.16)";   // 左边高光
+        ctx.fillRect(px, py, Math.max(2, TS * .09), TS);
+        ctx.fillStyle = "rgba(6,12,20,.42)";       // 右下投影
+        ctx.fillRect(px + TS - Math.max(2, TS * .10), py, Math.max(2, TS * .10), TS);
+        ctx.fillRect(px, py + TS - Math.max(2, TS * .10), TS, Math.max(2, TS * .10));
+        ctx.fillStyle = "rgba(20,32,48,.30)";
+        ctx.fillRect(px + 1, py + TS * .52, TS - 2, 1);
+      } else if (pat === "rubble") {
+        // 废墟：暖色碎石堆，与冷色的墙/街道天然区分
+        ctx.fillStyle = "rgba(255,204,140,.20)";
+        for (let i = 0; i < 4; i++) {
+          const w = TS > 26 ? 4 : 3;
+          ctx.fillRect(px + 3 + hash(x + i * 7, y + i * 13) * (TS - 8),
+                       py + 3 + hash(x * 3 + i, y * 5 + i) * (TS - 8), w, w);
+        }
+        ctx.strokeStyle = "rgba(255,190,120,.13)";
+        ctx.beginPath();
+        ctx.moveTo(px + 2, py + TS - 3);
+        ctx.lineTo(px + TS - 3, py + 2);
+        ctx.stroke();
+      } else if (pat === "water" || pat === "shoal") {
+        // 水：两道波纹；浅滩更亮、更密
+        ctx.strokeStyle = pat === "shoal" ? "rgba(160,235,250,.34)" : "rgba(110,205,245,.30)";
+        ctx.beginPath();
+        ctx.moveTo(px + 3, py + TS * .62);
+        ctx.lineTo(px + TS - 3, py + TS * .44);
+        ctx.moveTo(px + 5, py + TS * .82);
+        ctx.lineTo(px + TS - 6, py + TS * .70);
+        if (pat === "shoal") {
+          ctx.moveTo(px + 4, py + TS * .30);
+          ctx.lineTo(px + TS - 5, py + TS * .22);
+        }
+        ctx.stroke();
+      } else if (pat === "wheat") {
+        // 麦田：一排竖直麦秆，走进去视觉上就"被埋住"
+        ctx.strokeStyle = "rgba(206,226,120,.42)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const gx = px + 4 + i * (TS - 8) / 4;
+          const h = TS * (0.42 + 0.2 * hash(x + i, y * 3 + i));
+          ctx.moveTo(gx, py + TS * 0.86);
+          ctx.lineTo(gx + 1.2, py + TS * 0.86 - h);
+        }
+        ctx.stroke();
+        ctx.fillStyle = "rgba(240,220,120,.28)";
+        ctx.fillRect(px, py + TS * 0.80, TS, TS * 0.2);
+      } else if (pat === "car") {
+        // 车阵：一辆压扁的车壳，顶盖高光 + 车窗
+        ctx.fillStyle = "rgba(10,16,24,.55)";
+        ctx.fillRect(px + 3, py + 5, TS - 6, TS - 9);
+        ctx.fillStyle = "rgba(150,190,230,.20)";
+        ctx.fillRect(px + 5, py + 7, TS - 10, TS * 0.26);
+        ctx.fillStyle = "rgba(255,255,255,.10)";
+        ctx.fillRect(px + 3, py + 5, TS - 6, 2);
+        ctx.strokeStyle = "rgba(180,210,240,.22)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 3.5, py + 5.5, TS - 7, TS - 10);
+      } else if (pat === "tree") {
+        // 树丛：两三团深绿叶冠
+        for (let i = 0; i < 3; i++) {
+          const cx2 = px + TS * (0.28 + 0.22 * i) + hash(x, y + i) * 4;
+          const cy2 = py + TS * 0.52 + (hash(x + i, y) - 0.5) * TS * 0.26;
+          ctx.fillStyle = i === 1 ? "rgba(72,150,110,.42)" : "rgba(40,104,78,.55)";
+          ctx.beginPath();
+          ctx.arc(cx2, cy2, TS * 0.21, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.strokeStyle = "rgba(20,60,44,.5)";
+        ctx.beginPath();
+        ctx.moveTo(px + TS * 0.5, py + TS * 0.9);
+        ctx.lineTo(px + TS * 0.5, py + TS * 0.55);
+        ctx.stroke();
+      } else if (pat === "mat") {
+        // 菌毯：紫色菌丝 + 微光
+        ctx.strokeStyle = "rgba(214,160,255,.32)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) {
+          const ax = px + TS * (0.2 + i * 0.28), ay = py + TS * 0.72;
+          ctx.moveTo(ax, ay);
+          ctx.quadraticCurveTo(ax + 3, ay - TS * 0.3, ax + 7, ay - TS * 0.45);
+        }
+        ctx.stroke();
+        ctx.fillStyle = "rgba(190,130,240,.22)";
+        ctx.beginPath();
+        ctx.arc(px + TS * 0.62, py + TS * 0.44, TS * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pat === "sand") {
+        // 沙地：细密亮斑
+        ctx.fillStyle = "rgba(255,232,180,.22)";
+        for (let i = 0; i < 5; i++) {
+          ctx.fillRect(px + 2 + hash(x + i * 5, y + i * 11) * (TS - 5),
+                       py + 2 + hash(x * 9 + i, y * 7 + i) * (TS - 5), 2, 2);
+        }
+      } else {
+        // 街道：极淡的柏油噪点，避免大片死板
+        ctx.fillStyle = "rgba(255,255,255,.022)";
+        for (let i = 0; i < 2; i++) {
+          ctx.fillRect(px + hash(x + i * 11, y + i * 5) * (TS - 4),
+                       py + hash(x * 7 + i, y * 3 + i) * (TS - 4), 2, 2);
+        }
+      }
+      ctx.globalAlpha = 1;
+      if (!vis) {                          // 记忆层：压暗但不抹掉地形，仍能认出墙
+        ctx.fillStyle = "rgba(6,10,16,.30)";
+        ctx.fillRect(px, py, TS, TS);
+      }
+    }
+  }
+
+  // 2. 威胁格（敌人射程覆盖）
+  //    只画已探索区域；用"极淡填充 + 边界轮廓"，避免大面积红色把地形糊掉
+  if (S.threat && S.threat.length) {
+    const key = (x, y) => y * 4096 + x;
+    const th = new Set();
+    for (const [x, y] of S.threat) if (S.seen[y][x]) th.add(key(x, y));
+    ctx.fillStyle = "rgba(255,80,80,.028)";
+    for (const k of th) {
+      const x = k % 4096, y = (k - x) / 4096;
+      ctx.fillRect(x * TS, y * TS, TS, TS);
+    }
+    ctx.strokeStyle = "rgba(255,96,96,.24)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (const k of th) {
+      const x = k % 4096, y = (k - x) / 4096;
+      const px = x * TS, py = y * TS;
+      if (!th.has(key(x - 1, y))) { ctx.moveTo(px + .75, py); ctx.lineTo(px + .75, py + TS); }
+      if (!th.has(key(x + 1, y))) { ctx.moveTo(px + TS - .75, py); ctx.lineTo(px + TS - .75, py + TS); }
+      if (!th.has(key(x, y - 1))) { ctx.moveTo(px, py + .75); ctx.lineTo(px + TS, py + .75); }
+      if (!th.has(key(x, y + 1))) { ctx.moveTo(px, py + TS - .75); ctx.lineTo(px + TS, py + TS - .75); }
+    }
+    ctx.stroke();
+  }
+
+  // 3. 悬停格 + 选中单位的可移动格
+  const su = sel ? byId(sel) : null;
+  if (su && su.reach) {
+    ctx.fillStyle = "rgba(94,203,232,.13)";
+    ctx.strokeStyle = "rgba(94,203,232,.30)";
+    ctx.lineWidth = 1;
+    for (const [x, y] of su.reach) {
+      ctx.fillRect(x * TS + 1, y * TS + 1, TS - 2, TS - 2);
+      ctx.strokeRect(x * TS + 1.5, y * TS + 1.5, TS - 3, TS - 3);
+    }
+  }
+  if (hoverCell) {
+    ctx.strokeStyle = "rgba(255,255,255,.35)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(hoverCell[0] * TS + 1, hoverCell[1] * TS + 1, TS - 2, TS - 2);
+  }
+
+  // 4. 尸茧
+  for (const c of (S.cocoons || [])) {
+    if (!S.seen[c.y][c.x]) continue;
+    const cx = c.x * TS + TS / 2, cy = c.y * TS + TS / 2;
+    const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 320 + c.x);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, TS * 0.27, TS * 0.34, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(226,196,120,${0.30 + 0.22 * pulse})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255,226,150,${0.55 + 0.35 * pulse})`;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+  }
+
+  // 4.5 散落的感染物（拾取物）
+  for (const r of (S.relic_drops || [])) {
+    if (!S.seen[r.y][r.x]) continue;
+    const rm = (S.meta.relics || {})[r.id] || { color: "#ffd166", tag: "?" };
+    const rx = r.x * TS + TS / 2;
+    const ry = r.y * TS + TS / 2 + Math.sin(Date.now() / 340 + r.x * 1.7) * TS * 0.055;
+    const glow = 0.5 + 0.5 * Math.sin(Date.now() / 300 + r.x);
+    const gr = ctx.createRadialGradient(rx, ry, 0, rx, ry, TS * 0.62);
+    gr.addColorStop(0, rm.color + "88");
+    gr.addColorStop(1, rm.color + "00");
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(rx, ry, TS * 0.62, 0, Math.PI * 2); ctx.fill();
+    // 菱形晶体
+    ctx.beginPath();
+    ctx.moveTo(rx, ry - TS * 0.26);
+    ctx.lineTo(rx + TS * 0.19, ry);
+    ctx.lineTo(rx, ry + TS * 0.26);
+    ctx.lineTo(rx - TS * 0.19, ry);
+    ctx.closePath();
+    ctx.fillStyle = rm.color;
+    ctx.globalAlpha = 0.85 + 0.15 * glow;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = "#10131a";
+    ctx.font = `700 ${Math.max(8, TS * 0.36)}px "Microsoft YaHei",system-ui`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(rm.tag, rx, ry + .5);
+  }
+
+  // 5. 单位（画在动画插值位置）
+  for (const u of S.units) {
+    const [vx, vy] = unitPos(u);
+    if (u.mother) drawMother(u, vx, vy, spawnPop(u.x, u.y));
+    else drawUnit(u, vx, vy, spawnPop(u.x, u.y));
+  }
+
+  // 6. 特效层（攻击射线 / 受击闪光 / 伤害数字 / 死亡碎片）
+  drawFx();
+
+  // 7. 网格
+  ctx.strokeStyle = "rgba(255,255,255,.042)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x++) { ctx.moveTo(x * TS + .5, 0); ctx.lineTo(x * TS + .5, H * TS); }
+  for (let y = 0; y <= H; y++) { ctx.moveTo(0, y * TS + .5); ctx.lineTo(W * TS, y * TS + .5); }
+  ctx.stroke();
+}
+
+// ★ 美术替换点：换精灵图只需把这里的矢量绘制换成 drawImage
+function roundRectPath(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* 母巢：占 2×2 四格。四个小格是巢的四腔，中间是核心，等级贴在顶部 */
+function drawMother(u, vx, vy, pop) {
+  vx = vx == null ? u.x : vx;
+  vy = vy == null ? u.y : vy;
+  pop = pop == null ? 1 : pop;
+  const px = vx * TS, py = vy * TS, D = TS * 2;
+  const cx = px + TS, cy = py + TS;
+  const k = 0.6 + 0.4 * pop;
+  const isSel = sel === u.uid;
+  const flash = hitFlash(u.x, u.y);
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 430);
+
+  // 底下的紫光
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, D * 0.92);
+  g.addColorStop(0, "rgba(178,118,255,.34)");
+  g.addColorStop(0.55, "rgba(150,90,230,.14)");
+  g.addColorStop(1, "rgba(150,90,230,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, D * 0.92, 0, Math.PI * 2); ctx.fill();
+
+  ctx.save();
+  ctx.globalAlpha = k;
+
+  // 巢体底板
+  roundRectPath(px + 2.5, py + 2.5, D - 5, D - 5, TS * 0.3);
+  ctx.fillStyle = "#221436";
+  ctx.fill();
+
+  // 四腔
+  for (let i = 0; i < 4; i++) {
+    const ox = px + (i % 2) * TS, oy = py + Math.floor(i / 2) * TS;
+    const ph = 0.5 + 0.5 * Math.sin(Date.now() / 380 + i * 1.3);
+    roundRectPath(ox + TS * 0.13, oy + TS * 0.13, TS * 0.74, TS * 0.74, TS * 0.2);
+    ctx.fillStyle = i % 2 === 0
+      ? `rgba(192,124,255,${0.42 + 0.26 * ph})`
+      : `rgba(148,92,214,${0.36 + 0.2 * ph})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(232,204,255,${0.35 + 0.25 * pulse})`;
+    ctx.lineWidth = 1.3;
+    ctx.stroke();
+    // 腔内的小血管
+    ctx.strokeStyle = "rgba(255,235,255,.22)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ox + TS * 0.26, oy + TS * 0.66);
+    ctx.lineTo(ox + TS * 0.5, oy + TS * 0.36);
+    ctx.lineTo(ox + TS * 0.74, oy + TS * 0.6);
+    ctx.stroke();
+  }
+
+  // 中央核心
+  ctx.beginPath();
+  ctx.arc(cx, cy, TS * 0.34, 0, Math.PI * 2);
+  ctx.fillStyle = "#b47cff";
+  ctx.fill();
+  if (flash > 0) {
+    ctx.fillStyle = "rgba(255,255,255," + (0.8 * flash) + ")";
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(255,255,255,.7)";
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.fillStyle = "#1a0d2b";
+  ctx.font = `700 ${Math.round(TS * 0.44)}px "Microsoft YaHei",system-ui`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(u.short, cx, cy + 1);
+
+  ctx.restore();
+
+  // 选中 / 可攻击
+  if (isSel) {
+    ctx.strokeStyle = "rgba(94,203,232,.95)";
+    ctx.lineWidth = 2.4;
+    roundRectPath(px + 1.5, py + 1.5, D - 3, D - 3, TS * 0.3);
+    ctx.stroke();
+  }
+
+  // 血条：铺在底部两格宽
+  const bw = D * 0.78, bh = 4;
+  const bx = cx - bw / 2, by = py + D - TS * 0.16;
+  ctx.fillStyle = "rgba(0,0,0,.7)";
+  ctx.fillRect(bx, by, bw, bh);
+  const hpR = ratio(u.hp, u.max_hp);
+  ctx.fillStyle = hpR > .5 ? "#c07cff" : hpR > .25 ? "#ffd166" : "#ff6b6b";
+  ctx.fillRect(bx, by, bw * hpR, bh);
+  if (u.shield > 0) {
+    ctx.strokeStyle = "rgba(140,220,255,.95)";
+    ctx.lineWidth = 1.6;
+    roundRectPath(px + 1.5, py + 1.5, D - 3, D - 3, TS * 0.3);
+    ctx.stroke();
+  }
+
+  // 等级徽章
+  if (u.lvl && u.lvl > 1) {
+    const bwid = TS * 0.62, bh2 = TS * 0.32;
+    const bxx = cx - bwid / 2, byy = py - bh2 * 0.55;
+    roundRectPath(bxx, byy, bwid, bh2, bh2 * 0.5);
+    ctx.fillStyle = "rgba(255,209,102,.95)";
+    ctx.fill();
+    ctx.fillStyle = "#2a1b0a";
+    ctx.font = `700 ${Math.round(bh2 * 0.72)}px system-ui`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Lv" + u.lvl, cx, byy + bh2 / 2 + .5);
+  }
+}
+
+// ★ 美术替换点：换精灵图只需把这里的矢量绘制换成 drawImage
+function drawUnit(u, vx, vy, pop) {
+  vx = vx == null ? u.x : vx;
+  vy = vy == null ? u.y : vy;
+  pop = pop == null ? 1 : pop;
+  const cx = vx * TS + TS / 2, cy = vy * TS + TS / 2;
+  const big = (u.mother ? 1.28 : 1) * (0.55 + 0.45 * pop);      // 入场时从小放大
+  const r = TS * 0.33 * big;
+  const isSel = sel === u.uid;
+  const su = sel ? byId(sel) : null;
+  const canHit = su && su.uid !== u.uid && (su.targets || []).indexOf(u.uid) >= 0;
+  const flash = hitFlash(Math.round(vx), Math.round(vy));
+
+  if (u.mother) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, TS * 1.2);
+    g.addColorStop(0, "rgba(180,120,255,.30)");
+    g.addColorStop(1, "rgba(180,120,255,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, TS * 1.2, 0, Math.PI * 2); ctx.fill();
+  }
+  if (isSel) {
+    ctx.strokeStyle = "rgba(94,203,232,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 5, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (canHit) {
+    ctx.strokeStyle = "rgba(255,90,90,.9)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(cx, cy, r + 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.beginPath();
+  unitShapePath(cx, cy, r, u.shape);
+  ctx.fillStyle = u.color;
+  ctx.fill();
+  if (flash > 0) {                     // 受击瞬间整体泛白
+    ctx.fillStyle = "rgba(255,255,255," + (0.8 * flash) + ")";
+    ctx.fill();
+  }
+  ctx.lineWidth = u.side === "h" ? 2 : 1.4;
+  ctx.strokeStyle = u.side === "h" ? "#eaf2ff" : "rgba(0,0,0,.55)";
+  ctx.stroke();
+
+  if (u.shield > 0) {
+    ctx.strokeStyle = "rgba(140,220,255,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, r + 3, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  ctx.fillStyle = "#0a0d12";
+  ctx.font = `700 ${u.mother ? 12 : 11}px "Microsoft YaHei",system-ui`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(u.short, cx, cy + .5);
+
+  // 血条
+  const bw = TS * 0.72, bh = 3;
+  const bx = cx - bw / 2, by = cy + r + 3;
+  ctx.fillStyle = "rgba(0,0,0,.62)";
+  ctx.fillRect(bx, by, bw, bh);
+  const hpR = ratio(u.hp, u.max_hp);
+  ctx.fillStyle = u.side === "z"
+    ? (hpR > .5 ? "#5ecbe8" : hpR > .25 ? "#ffd166" : "#ff6b6b") : "#ff8f8f";
+  ctx.fillRect(bx, by, bw * hpR, bh);
+
+  // 等级角标：每级画一颗小菱形，居中贴在头顶
+  const lvl = u.lvl || 1;
+  if (u.side === "z" && !u.mother && lvl > 1) {
+    const gap = 5.4, w0 = gap * lvl - (gap - 4.4);
+    ctx.fillStyle = "#ffd166";
+    for (let i = 0; i < lvl; i++) {
+      const px = cx - w0 / 2 + 2.2 + i * gap, py = cy - r - 3.5;
+      ctx.beginPath();
+      ctx.moveTo(px, py - 2.6); ctx.lineTo(px + 2.2, py);
+      ctx.lineTo(px, py + 2.6); ctx.lineTo(px - 2.2, py);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  if (u.aim > 0) {                       // 狙击手：锁定中
+    ctx.strokeStyle = "rgba(255,159,67,.85)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.arc(cx, cy, r + 9, 0, Math.PI * 2); ctx.stroke();
+    const lock = u.aim_uid ? byId(u.aim_uid) : null;
+    if (lock) {
+      const big = lock.size === 2;
+      const tx = (lock.x + (big ? 1 : 0.5)) * TS, ty = (lock.y + (big ? 1 : 0.5)) * TS;
+      const lockR = big ? TS * 0.95 : TS * 0.42;
+      // 一条虚线牵着被锁定的目标，目标身上再套一圈准星
+      ctx.strokeStyle = "rgba(255,159,67,.5)";
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.beginPath(); ctx.arc(tx, ty, lockR, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(tx - 7, ty); ctx.lineTo(tx + 7, ty);
+      ctx.moveTo(tx, ty - 7); ctx.lineTo(tx, ty + 7);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  if (u.bound > 0) {                     // 被缠住
+    ctx.strokeStyle = "rgba(201,155,255,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r);
+    ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r);
+    ctx.stroke();
+  }
+}
+
+function unitShapePath(cx, cy, r, sh) {
+  if (sh === "square") ctx.rect(cx - r * .86, cy - r * .86, r * 1.72, r * 1.72);
+  else if (sh === "triangle") {
+    ctx.moveTo(cx, cy - r * 1.12);
+    ctx.lineTo(cx + r, cy + r * .78);
+    ctx.lineTo(cx - r, cy + r * .78);
+    ctx.closePath();
+  } else if (sh === "diamond") {
+    ctx.moveTo(cx, cy - r * 1.2);
+    ctx.lineTo(cx + r * .92, cy);
+    ctx.lineTo(cx, cy + r * 1.2);
+    ctx.lineTo(cx - r * .92, cy);
+    ctx.closePath();
+  } else ctx.arc(cx, cy, r, 0, Math.PI * 2);
+}
+
+// ── 特效层 ──────────────────────────────────────────
+function drawFx() {
+  for (const a of anims) {
+    const p = (clock - a.t0) / a.dur;
+    if (p < 0 || p >= 1) continue;
+
+    if (a.k === "bolt") {
+      const sx = a.sx * TS + TS / 2, sy = a.sy * TS + TS / 2;
+      const tx = a.tx * TS + TS / 2, ty = a.ty * TS + TS / 2;
+      if (a.melee) {
+        // 近战：一道朝目标的短促弧光
+        const ang = Math.atan2(ty - sy, tx - sx);
+        const rad = TS * (0.34 + 0.55 * easeOut(p));
+        ctx.strokeStyle = a.side === "z"
+          ? `rgba(255,120,120,${0.95 * (1 - p)})`
+          : `rgba(255,225,150,${0.95 * (1 - p)})`;
+        ctx.lineWidth = 4.6 * (1 - p) + 1.2;
+        ctx.beginPath();
+        ctx.arc(sx, sy, rad, ang - 0.95, ang + 0.95);
+        ctx.stroke();
+      } else {
+        // 远程：一条从射击者滑向目标的曳光（外层光晕 + 内层亮芯）
+        const head = Math.min(1, p / 0.72);
+        const hx = sx + (tx - sx) * head, hy = sy + (ty - sy) * head;
+        const tail = Math.max(0, head - 0.55);
+        const bx = sx + (tx - sx) * tail, by = sy + (ty - sy) * tail;
+        const col = a.side === "z" ? "255,110,110" : "255,220,140";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = `rgba(${col},${0.34 * (1 - p)})`;   // 光晕
+        ctx.lineWidth = 13 * (1 - p) + 4;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
+        const g = ctx.createLinearGradient(bx, by, hx, hy);
+        g.addColorStop(0, `rgba(${col},0)`);
+        g.addColorStop(1, `rgba(${col},${0.95 * (1 - p * 0.5)})`);
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 5 * (1 - p) + 2;                      // 亮芯
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.lineCap = "butt";
+        // 弹头亮点
+        ctx.fillStyle = `rgba(255,255,240,${0.95 * (1 - p)})`;
+        ctx.beginPath(); ctx.arc(hx, hy, 3.4 * (1 - p) + 1, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (a.k === "hit") {
+      // 命中：整格先闪一下（明确"就是这一格挨打"），再扩散一圈波纹
+      const cx = a.tx * TS + TS / 2, cy = a.ty * TS + TS / 2;
+      if (p < 0.4) {
+        ctx.fillStyle = `rgba(255,242,210,${0.38 * (1 - p / 0.4)})`;
+        ctx.fillRect(a.tx * TS, a.ty * TS, TS, TS);
+      }
+      const e = easeOut(p);
+      ctx.strokeStyle = a.side === "z"
+        ? `rgba(255,130,130,${0.85 * (1 - p)})`
+        : `rgba(255,235,170,${0.9 * (1 - p)})`;
+      ctx.lineWidth = 2.6 * (1 - p) + 0.6;
+      ctx.beginPath(); ctx.arc(cx, cy, TS * (0.2 + 0.42 * e), 0, Math.PI * 2); ctx.stroke();
+    } else if (a.k === "num") {
+      // 伤害数字：先弹一下再上浮淡出
+      const cx = a.x * TS + TS / 2, cy = a.y * TS + TS / 2;
+      const rise = -TS * 1.05 * easeOut(p);
+      const popS = p < 0.18 ? 1 + 0.55 * (1 - p / 0.18) : 1;
+      ctx.globalAlpha = p < 0.72 ? 1 : 1 - (p - 0.72) / 0.28;
+      ctx.font = `800 ${Math.round(TS * 0.52 * popS)}px "Microsoft YaHei",system-ui`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(6,10,16,.85)";
+      ctx.strokeText(a.txt, cx, cy + rise);
+      ctx.fillStyle = a.color;
+      ctx.fillText(a.txt, cx, cy + rise);
+      ctx.globalAlpha = 1;
+    } else if (a.k === "die") {
+      // 死亡：白闪 → 碎片四散 → 残影淡出
+      const cx = a.x * TS + TS / 2, cy = a.y * TS + TS / 2;
+      const r0 = TS * 0.33 * (a.mother ? 1.28 : 1);
+      const e = easeOut(p);
+      if (p < 0.22) {
+        ctx.globalAlpha = 1 - p / 0.22;
+        ctx.fillStyle = a.color;
+        ctx.beginPath(); ctx.arc(cx, cy, r0 * (1 + 0.9 * e), 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      const n = a.mother ? 14 : 9;
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2 + a.x * 1.7;
+        const spd = TS * (0.55 + 0.75 * hash(a.x * 13 + i, a.y * 7 + i));
+        const d = spd * e;
+        const px = cx + Math.cos(ang) * d;
+        const py = cy + Math.sin(ang) * d + TS * 0.35 * e * e;   // 轻微下坠
+        const sz = Math.max(1, TS * 0.11 * (1 - e));
+        ctx.globalAlpha = 0.9 * (1 - e);
+        ctx.fillStyle = i % 3 === 0 ? "#f2e6d0" : a.color;
+        ctx.fillRect(px - sz / 2, py - sz / 2, sz, sz);
+      }
+      ctx.globalAlpha = 1;
+      // 残影：短暂的轮廓
+      if (p < 0.45) {
+        ctx.globalAlpha = 0.55 * (1 - p / 0.45);
+        ctx.strokeStyle = a.side === "z" ? "#ffb3b3" : "#cfe4ff";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, r0 * (1 + 1.5 * e), 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
+// ── 面板渲染 ────────────────────────────────────────
+function renderHUD() {
+  const tut = S.tut;
+  document.getElementById("hTurn").textContent = S.turn;
+  document.getElementById("hTotal").textContent = tut ? "∞" : S.turns_total;
+  document.getElementById("hInf").textContent = S.infected;
+  document.getElementById("hBio").textContent = S.biomass;
+  let h = "";
+  for (let i = 0; i < S.ap_max; i++) h += `<i class="pip${i < S.ap ? " on" : ""}"></i>`;
+  document.getElementById("hAp").innerHTML = h;
+  document.getElementById("hApNum").textContent = `${S.ap}/${S.ap_max}`;
+
+  // 手机顶栏（桌面端元素隐藏，但同步数值没有副作用）
+  const mTurn = document.getElementById("mTurn");
+  if (mTurn) {
+    mTurn.textContent = S.turn;
+    document.getElementById("mTotal").textContent = tut ? "∞" : S.turns_total;
+    document.getElementById("mAp").textContent = `${S.ap}/${S.ap_max}`;
+    document.getElementById("mBio").textContent = S.biomass;
+    const mw = document.getElementById("mWhere");
+    if (S.mutation) mw.textContent = "突变 · 消耗生物质";
+    else if (tut) mw.textContent = `新手教程 · 第 ${tut.i + 1}/${tut.n} 课`;
+    else if (S.map) {
+      mw.textContent = `${S.map.name} ${S.map.i + 1}-${S.map.layer + 1} · ` +
+                       `${S.map.depth + 1}/${S.map.run_layers} 层`;
+    }
+    document.getElementById("mEnd").disabled = !!S.over;
+  }
+
+  // 远征位置：地图名 + 第几层 + 全城进度
+  const m = S.map;
+  const w = document.getElementById("hWhere");
+  if (S.mutation) {
+    w.innerHTML = `<b>突变</b><span>${S.mutation.from} 之后</span><em>消耗生物质</em>`;
+    w.title = "三项突变各拿一次；结束突变后继续深入下一层";
+    return;
+  }
+  if (m && tut) {
+    w.innerHTML = `<b>新手教程</b><span>第 ${tut.i + 1}/${tut.n} 课</span><em>目标达成自动进下一课</em>`;
+    w.title = tut.hint;
+    return;
+  }
+  if (m) {
+    const pct = Math.round(((m.depth + (S.stage_clear ? 1 : 0)) / m.run_layers) * 100);
+    w.innerHTML = `<b>${m.name}</b>
+      <span>${m.i + 1}-${m.layer + 1}</span>
+      <span class="pbar"><i style="width:${pct}%"></i></span>
+      <em>${m.depth + 1}/${m.run_layers} 层</em>`;
+    w.title = `${m.sub}　本层第 ${S.turn}/${S.turns_total} 回合`;
+  }
+}
+
+function renderMother() {
+  const m = S.mother, el = document.getElementById("motherCard");
+  const r = ratio(m.hp, m.max_hp);
+  const er = ratio(m.exp || 0, m.exp_need || 1);
+  const lvl = m.lvl || 1;
+  // 下一个靠升级解锁的形态
+  const next = Object.entries(S.meta.ztypes || {})
+    .map(([k, v]) => ({ k, lv: v.unlock_lvl || 0, name: v.name, color: v.color }))
+    .filter(x => x.lv > lvl)
+    .sort((a, b) => a.lv - b.lv)[0];
+  el.innerHTML = `
+    <h4>母巢</h4>
+    <div class="row"><span class="name">${m.name}
+        <span class="lvlchip">Lv${lvl}</span></span>
+      <span class="tag">${m.hp}${m.shield > 0 ? " (+" + m.shield + "盾)" : ""} / ${m.max_hp}</span></div>
+    <div class="bar"><i style="width:${r * 100}%;background:${r > .5 ? "#b47cff" : r > .25 ? "#ffd166" : "#ff6b6b"}"></i></div>
+    <div class="row" style="margin-top:5px">
+      <span class="tag" style="font-size:11px">经验 ${m.exp || 0}/${m.exp_need || 0}</span>
+      <span class="tag" style="font-size:11px;color:#ffd166">孵化 Lv${m.hatch_lvl || 1}</span>
+    </div>
+    <div class="mexp"><i style="width:${er * 100}%"></i></div>
+    <div class="row" style="margin-top:7px">
+      <span class="tag">${m.skill} <kbd>Q</kbd></span>
+      <button class="sm" id="btnMother" ${m.cd > 0 || S.over ? "disabled" : ""}>
+        ${m.cd > 0 ? "冷却 " + m.cd : "发动"}</button>
+    </div>
+    <div class="tag" style="margin-top:4px;opacity:.75">${m.desc}</div>
+    <div class="tag" style="margin-top:4px;font-size:11px;color:#a78bfa">
+      ${next ? `升级产出感染物 · Lv${next.lv} 解锁【${next.name}】`
+             : "升级产出感染物 · 所有丧尸形态均已解锁"}</div>`;
+  const b = document.getElementById("btnMother");
+  if (b) b.onclick = () => act({ type: "mother" });
+}
+
+function renderRelics() {
+  const el = document.getElementById("relicBar");
+  if (!el) return;
+  const ids = S.relics || [];
+  const meta = S.meta.relics || {};
+  const rarity = S.meta.rarity || [];
+  const pairs = S.meta.pairs || [];
+  const active = new Set(S.pairs_active || []);
+
+  const head = `<h4 class="panelhead">感染物 <span class="cnt">${ids.length}</span></h4>`;
+  if (!ids.length) {
+    el.innerHTML = head + `<div class="empty-hint" style="font-size:11px;line-height:1.6">
+        地图上会散落发光晶体，丧尸走上去即可拾取；母巢每次升级也会产出一枚。<br>
+        越往后越可能刷到稀有 / 传说，成对的感染物还会触发连携。</div>`;
+    return;
+  }
+  const chips = ids.map(id => {
+    const v = meta[id] || { name: id, tag: "?", color: "#888", desc: "", r: 0 };
+    const rc = rarity[v.r] ? rarity[v.r].color : "#9aa7b8";
+    const rn = rarity[v.r] ? rarity[v.r].name : "";
+    return `<div class="rl" style="background:${v.color};--rc:${rc}"
+      title="${rn} · ${v.name}　${v.desc}">${v.tag}<span class="rnum">${v.r + 1}</span></div>`;
+  }).join("");
+
+  // 连携：达成的亮着，没达成的灰着并提示还缺哪件
+  const pairHtml = pairs.length ? `<div class="pairs">${pairs.map(p => {
+    const on = active.has(p.id);
+    const lack = p.need.filter(k => ids.indexOf(k) < 0)
+      .map(k => (meta[k] || {}).name || k).join(" + ");
+    return `<div class="pair ${on ? "" : "off"}">
+      <b>${on ? "◈ " : "◇ "}${p.name}</b>　${on ? p.desc : "还缺 " + lack}</div>`;
+  }).join("")}</div>` : "";
+
+  el.innerHTML = head +
+    `<div class="rgrid">${chips}</div>` + pairHtml +
+    `<div class="tag" style="margin-top:6px;font-size:10.5px;opacity:.7">数字 1-4 = 稀有度（常见→传说）</div>`;
+}
+
+function renderUnitCard() {
+  const el = document.getElementById("unitCard");
+  const u = sel ? byId(sel) : null;
+  if (!u) {
+    const mobile = window.matchMedia("(max-width:900px)").matches;
+    el.innerHTML = `<h4 class="panelhead">单位详情</h4>
+      <div class="unote empty-hint">没有选中单位。<br>
+        ${mobile
+          ? "点地图上的丧尸选中它；点底栏「队伍」可以看全部单位。<br>点任意格子，底部信息条会显示那一格的详情。"
+          : "点地图上的丧尸，或按 <kbd>Tab</kbd> 循环 / <kbd>1</kbd>-<kbd>9</kbd> 直选。<br>鼠标停在任何格子上，地图下方会显示那一格的详细信息。"}</div>`;
+    return;
+  }
+  const t = (S.meta.ztypes || {})[u.kind] || {};
+  const r = ratio(u.hp, u.max_hp);
+  const canSkill = u.side === "z" && !u.mother && !S.over;
+  const maxLvl = S.meta.max_lvl || 3;
+  const isZ = u.side === "z" && !u.mother;
+  const nextLv = isZ && u.lvl < maxLvl ? (t.levels || [])[u.lvl] : null;
+  const col = r > .5 ? "#5ecbe8" : r > .25 ? "#ffd166" : "#ff6b6b";
+  el.innerHTML = `
+    <h4 class="panelhead">单位详情
+      <span class="cnt" style="color:${u.side === "z" ? "#5ecbe8" : "#ff8f8f"}">
+        ${u.mother ? "母巢" : (u.side === "z" ? "丧尸" : "人类")}</span></h4>
+    <div class="uhead">
+      <span class="dot" style="background:${u.color}"></span>
+      <span class="uname">${u.name}</span>
+      <span class="uid">#${u.uid}</span>
+      ${isZ ? `<span class="lvlchip${u.lvl >= maxLvl ? " max" : ""}">Lv${u.lvl}</span>` : ""}
+      <span class="uhp">${u.hp}/${u.max_hp}${u.shield ? " · 盾" + u.shield : ""}</span>
+    </div>
+    <div class="bar"><i style="width:${r * 100}%;background:${col}"></i></div>
+    <div class="ustats">
+      <span>攻击 <b>${u.atk}</b></span>
+      <span>射程 <b>${u.rng}</b></span>
+      <span>视野 <b>${u.sight}</b></span>
+      ${isZ ? `<span>本回合已动 <b>${u.acted}</b></span>` : ""}
+    </div>
+    ${u.atk <= 0 ? `<div class="unote" style="color:#ffb86b">它没有攻击力，作用是给母巢供能。</div>` : ""}
+    ${u.aim > 0 && u.aim_uid ? `<div class="unote" style="color:#ff9f43">已锁定 ${(byId(u.aim_uid) || {}).name || "目标"}，下一回合开枪。</div>` : ""}
+    ${nextLv ? `<div class="unote" style="color:#ffd166">下一级：HP ${nextLv.hp} · 攻 ${nextLv.atk} · 射程 ${nextLv.rng}<br>（吞尸茧升级）</div>` : ""}
+    ${t.skill && !u.mother ? `<div class="unote">技能：${t.skill}</div>
+      <button class="sm" id="btnSkill" style="margin-top:8px;width:100%"
+        ${!canSkill || u.skill_used ? "disabled" : ""}>
+        ${u.skill_used ? "本回合已用" : `释放技能 (1 ${S.ap_name || "腐能"})  <kbd>F</kbd>`}</button>` : ""}
+    ${u.mother ? `<div class="unote">${S.mother.desc}</div>` : ""}`;
+  const bs = document.getElementById("btnSkill");
+  if (bs) bs.onclick = () => onSkill(u);
+}
+
+function renderRoster() {
+  const el = document.getElementById("roster");
+  const zs = S.units.filter(u => u.side === "z")
+    .sort((a, b) => (a.mother ? 1 : 0) - (b.mother ? 1 : 0) || a.uid - b.uid);
+  const cnt = document.getElementById("rosterCnt");
+  if (cnt) cnt.textContent = zs.length;
+  el.innerHTML = zs.map((u, i) => {
+    const r = ratio(u.hp, u.max_hp);
+    const col = r > .5 ? "#5ecbe8" : r > .25 ? "#ffd166" : "#ff6b6b";
+    const maxLvl = S.meta.max_lvl || 3;
+    return `<div class="rm${sel === u.uid ? " sel" : ""}" data-uid="${u.uid}">
+      <span class="idx">${i + 1}</span>
+      <span class="dot" style="background:${u.color}"></span>
+      <span class="nm">${u.name}</span>
+      ${u.mother ? "" : `<span class="lvlchip${u.lvl >= maxLvl ? " max" : ""}">Lv${u.lvl}</span>`}
+      <span class="mini"><i style="width:${r * 100}%;background:${col}"></i></span>
+      <span class="tag">${u.hp}</span>
+    </div>`;
+  }).join("");
+  el.querySelectorAll(".rm").forEach(n => {
+    n.onclick = () => {
+      sel = +n.dataset.uid; mode = "idle"; Snd.click(); paint();
+      // 手机抽屉里点完队伍就收起来，别挡着地图
+      if (window.matchMedia("(max-width:900px)").matches) closeSheets();
+    };
+  });
+}
+
+function renderLog() {
+  const el = document.getElementById("logBox");
+  el.innerHTML = (S.log || []).map(l => `<div>${l}</div>`).join("");
+  el.scrollTop = el.scrollHeight;
+}
+
+function paint() {
+  renderHUD(); renderMother(); renderRelics(); renderUnitCard(); renderRoster(); renderLog(); renderTut();
+  renderMobileSkill();
+  document.getElementById("btnEnd").disabled = !!S.over;
+  if (hoverCell) updateHover(hoverCell);
+  draw();
+}
+
+/** 手机底栏的技能按钮：跟着当前选中的丧尸走 */
+function renderMobileSkill() {
+  const b = document.getElementById("mSkill");
+  if (!b) return;
+  const u = sel ? byId(sel) : null;
+  const can = !!(u && u.side === "z" && !u.mother && !S.over);
+  b.disabled = !can || !!u.skill_used;
+  b.classList.toggle("ready", can && !u.skill_used);
+}
+
+// ── 技能分发 ────────────────────────────────────────
+let rotterArm = null;      // 催腐者自毁需要连按两次，避免误触
+function onSkill(u) {
+  if (!u || u.side !== "z" || u.mother) return;
+  const k = u.kind;
+  if (k === "bulwark" || k === "skitter") return act({ type: "skill", uid: u.uid });
+  if (k === "rotter") {
+    const now = performance.now();
+    if (rotterArm && rotterArm.uid === u.uid && now - rotterArm.t < 4000) {
+      rotterArm = null;
+      return act({ type: "skill", uid: u.uid });
+    }
+    rotterArm = { uid: u.uid, t: now };
+    Snd.err();
+    flash("催腐者会当场腐解（自毁）并给母巢一大笔经验 —— 4 秒内再按一次确认");
+    return;
+  }
+  if (k === "bloat") {
+    if (!(u.targets || []).length) { Snd.err(); flash("爆裂体需要相邻的敌人"); return; }
+    return act({ type: "skill", uid: u.uid });
+  }
+  if (k === "ripper") {
+    const tg = (u.targets || []).map(byId).filter(o => o && Math.hypot(o.x - u.x, o.y - u.y) <= 1.01);
+    if (!tg.length) { Snd.err(); flash("撕裂需要一个相邻的敌人"); return; }
+    return act({ type: "skill", uid: u.uid, target: tg[0].uid });
+  }
+  if (k === "weaver" || k === "spitter") {
+    const t = (u.targets || [])[0];
+    if (!t) { Snd.err(); flash("射程内没有可攻击的目标"); return; }
+    return act({ type: "skill", uid: u.uid, target: t.uid });
+  }
+  if (k === "scent") {
+    mode = "pick_scan"; pickUnit = u.uid;
+    flash("点击地图任意位置：扫描该点周围 3 格"); draw();
+  }
+}
+
+let flashTimer = null;
+let hintTimer = 0;
+function flash(msg) {
+  const h = document.getElementById("hint");
+  h.textContent = msg;
+  h.classList.add("show");
+  clearTimeout(flashTimer);
+  clearTimeout(hintTimer);
+  flashTimer = setTimeout(() => {
+    defaultHint();
+    if (isMobile()) h.classList.remove("show");
+  }, 2800);
+}
+function defaultHint() {
+  const h = document.getElementById("hint");
+  if (isMobile()) {
+    h.textContent = sel
+      ? "点蓝格移动 · 点红圈敌人攻击 · 底栏技能 · 双指缩放"
+      : "点丧尸选中 · 点蓝格移动 · 单指拖动 · 双指缩放";
+    return;
+  }
+  h.textContent = sel
+    ? "点蓝格移动 · 点红圈敌人攻击 · WASD 逐格移动 · F 技能 · 拖动地图 / 滚轮缩放"
+    : "点击丧尸选中 · Tab 循环 / 1-9 直选 · 空格结束回合 · 拖动平移 / 滚轮缩放";
+}
+
+/** 手机端：开局/换层后把操作提示露几秒，然后收起来 */
+function showHintOnce(ms) {
+  const h = document.getElementById("hint");
+  if (!h) return;
+  h.classList.add("show");
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => { if (isMobile()) h.classList.remove("show"); }, ms || 4500);
+}
+
+// ── 状态差异 → 音效（比按动作类型猜更准）─────────────
+function tally() {
+  const hp = {};
+  S.units.forEach(u => hp[u.uid] = u.hp);
+  return { hp, inf: S.infected, allies: teamCount(), bio: S.biomass,
+           ap: S.ap, turn: S.turn, over: S.over, result: S.result,
+           relics: (S.relics || []).length, mlvl: (S.mother && S.mother.lvl) || 1 };
+}
+function playDiff(before, after) {
+  if (!before) return;
+  const kills = after.inf - before.inf;
+  if (kills > 0) {
+    for (let i = 0; i < Math.min(kills, 4); i++) setTimeout(() => Snd.kill(), i * 90);
+  }
+  // 我方受伤
+  let allyHurt = false, enemyHurt = false;
+  for (const id in after.hp) {
+    const b = before.hp[id], a = after.hp[id];
+    if (b != null && a < b) {
+      const u = S.units.find(x => x.uid === +id);
+      if (u && u.side === "z") allyHurt = true; else enemyHurt = true;
+    }
+  }
+  if (allyHurt && kills === 0) Snd.hurt();
+  if (enemyHurt && kills === 0) Snd.hit();
+  if (after.allies > before.allies && kills === 0) Snd.hatch();
+  if (after.relics > before.relics) { Snd.unlock(); flash("获得感染物！"); }
+  else if (after.mlvl > before.mlvl) Snd.reinforce();
+  if (after.bio > before.bio && kills === 0) Snd.reinforce();
+  if (after.turn > before.turn && !after.over) Snd.turn();
+  if (after.over && !before.over) { after.result === "win" ? Snd.win() : Snd.lose(); }
+}
+
+// ── 指令（本地引擎，无网络）────────────────────────────
+async function act(payload) {
+  if (loading) { pending = payload; return; }     // 连按 WASD 不丢指令
+  loading = true;
+  const before = S ? tally() : null;
+  try {
+    const next = ROT.act(payload);
+    const evs = next.events || [];
+    S = next;
+    if (payload.type === "advance" || payload.type === "mutation_done") centerOnMother();   // 换层后镜头跟到新母巢
+    playDiff(before, tally());
+    if (sel && !byId(sel)) sel = null;
+    paint();                                      // 面板先更新，地图随后播动画
+    // 回合结束：人类逐个行动，串行慢放并锁住输入，避免"看不清发生了什么"就进入下一步
+    const serial = payload.type === "end_turn";
+    const dur = enqueue(evs, serial);
+    if (serial && dur > 0) await waitAnim(dur);
+    if (S.over) { if (S.tut) showTutFail(); else showResult(); }
+    else if (S.stage_clear) { if (dur > 0) await waitAnim(Math.min(dur, 0.4)); showStageClear(); }
+    // 丧尸踩到尸茧：先让它走完那一步，再弹出处置面板
+    else if (S.pending) {
+      const pd = S.pending;
+      if (dur > 0) await waitAnim(Math.min(dur, 0.5) + 0.05);
+      if (S.pending && !S.over && !S.stage_clear) { openCocoon(pd); }
+    }
+    // 层间随机事件：掉进突变层
+    else if (S.mutation) { showMutation(); }
+  } catch (e) {
+    Snd.err(); flash("请求失败：" + e.message);
+  } finally {
+    loading = false;
+    if (pending) { const p = pending; pending = null; act(p); }
+  }
+}
+
+async function newGame(opts) {
+  loading = true;
+  try {
+    const next = ROT.newGame(opts);
+    const evs = next.events || [];
+    S = next;
+    sel = null; mode = "idle"; hoverCell = null;
+    anims = [];                       // 丢掉上一局的残留动画
+    closeOverlay(); closeSheets(); resize(); fitView(); paint(); defaultHint(); setIdleBar();
+    if (isMobile() && !S.tut) showHintOnce(5000);
+    enqueue(evs, false);              // 开局所有单位一起浮现
+    await loadProfile();
+  } finally { loading = false; }
+}
+
+async function loadProfile() {
+  try { PROF = ROT.profile(); } catch (e) { PROF = null; }
+}
+
+// ── 交互 ────────────────────────────────────────────
+function toCell(ev) {
+  const rect = cv.getBoundingClientRect();
+  const sx = ev.clientX - rect.left, sy = ev.clientY - rect.top;
+  const x = Math.floor((cam.x + sx / cam.z) / TS);
+  const y = Math.floor((cam.y + sy / cam.z) / TS);
+  if (x < 0 || y < 0 || x >= S.w || y >= S.h) return null;
+  return [x, y];
+}
+
+// ── 拖动 / 缩放 ────────────────────────────────────
+let dragState = null;
+let suppressClick = false;
+const pointers = new Map();     // 触摸时同时按下的手指，用来做双指缩放
+let pinchState = null;
+
+const pointerDist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+cv.addEventListener("pointerdown", ev => {
+  if (ev.button !== 0 && ev.button !== 1 && ev.button !== 2) return;
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+  if (pointers.size === 1) {
+    dragState = { id: ev.pointerId, x: ev.clientX, y: ev.clientY,
+                  cx: cam.x, cy: cam.y, moved: false };
+    pinchState = null;
+  } else if (pointers.size === 2) {
+    // 双指：以两指中点为锚点，同时缩放和拖动
+    const [a, b] = [...pointers.values()];
+    const rect = cv.getBoundingClientRect();
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    pinchState = {
+      d0: Math.max(20, pointerDist(a, b)),
+      cam: { x: cam.x, y: cam.y, z: cam.z },
+      world: { x: cam.x + (mid.x - rect.left) / cam.z,
+               y: cam.y + (mid.y - rect.top) / cam.z },
+    };
+    dragState = null;
+  }
+});
+
+cv.addEventListener("pointermove", ev => {
+  if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pinchState && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const rect = cv.getBoundingClientRect();
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const d = Math.max(20, pointerDist(a, b));
+    const z = Math.max(ZMIN, Math.min(ZMAX, pinchState.cam.z * (d / pinchState.d0)));
+    cam.z = z;
+    cam.x = pinchState.world.x - (mid.x - rect.left) / z;
+    cam.y = pinchState.world.y - (mid.y - rect.top) / z;
+    clampCam();
+    updateZoomLabel();
+    draw();
+    suppressClick = true;
+    return;
+  }
+  if (!dragState || ev.pointerId !== dragState.id) return;
+  const dx = ev.clientX - dragState.x, dy = ev.clientY - dragState.y;
+  if (!dragState.moved && Math.hypot(dx, dy) < 4) return;
+  dragState.moved = true;
+  cv.classList.add("dragging");
+  cam.x = dragState.cx - dx / cam.z;
+  cam.y = dragState.cy - dy / cam.z;
+  clampCam();
+  draw();
+});
+
+function endDrag(ev) {
+  const wasPinch = !!pinchState;
+  pointers.delete(ev.pointerId);
+  if (pointers.size < 2) pinchState = null;
+  if (wasPinch) {
+    // 双指结束后不要顺手当成点击
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 250);
+  }
+  if (!dragState || ev.pointerId !== dragState.id) {
+    if (pointers.size === 0) cv.classList.remove("dragging");
+    return;
+  }
+  if (dragState.moved) {
+    suppressClick = true;                       // 拖完不要顺手选中单位
+    setTimeout(() => { suppressClick = false; }, 0);
+  }
+  dragState = null;
+  if (pointers.size === 0) cv.classList.remove("dragging");
+}
+cv.addEventListener("pointerup", endDrag);
+cv.addEventListener("pointercancel", endDrag);
+
+cv.addEventListener("wheel", ev => {
+  if (!S) return;
+  ev.preventDefault();
+  const rect = cv.getBoundingClientRect();
+  const f = Math.exp(-ev.deltaY * 0.0016);
+  setZoom(cam.z * f, ev.clientX - rect.left, ev.clientY - rect.top);
+}, { passive: false });
+
+document.getElementById("zIn").onclick = () => { Snd.click(); setZoom(cam.z * 1.2); };
+document.getElementById("zOut").onclick = () => { Snd.click(); setZoom(cam.z / 1.2); };
+document.getElementById("zFit").onclick = () => { Snd.click(); fitView(); };
+
+cv.addEventListener("click", ev => {
+  if (!S || S.over || loading) return;
+  if (suppressClick) return;
+  const c = toCell(ev); if (!c) return;
+  const [x, y] = c;
+  // 手机没有 hover：点哪格就把底部信息条切到哪格
+  hoverCell = c;
+  updateHover(c);
+  showHoverBar();
+
+  if (mode === "pick_scan") {
+    mode = "idle";
+    return act({ type: "skill", uid: pickUnit, x, y });
+  }
+  const u = unitAt(x, y);
+  const su = sel ? byId(sel) : null;
+
+  if (u && u.side === "h" && su && (su.targets || []).indexOf(u.uid) >= 0) {
+    return act({ type: "attack", uid: su.uid, target: u.uid });
+  }
+  const coc = cocoonAt(x, y);
+  if (u && u.side === "z") {
+    // 站在茧上的丧尸：第一次点选中，再点一次才打开处置面板（否则选不中它）
+    if (coc && sel === u.uid && !u.mother) { openCocoon({ x, y, uid: u.uid }); return; }
+    sel = u.uid; mode = "idle"; Snd.click(); paint(); defaultHint(); return;
+  }
+  if (su && su.reach && su.reach.some(cc => cc[0] === x && cc[1] === y)) {
+    return act({ type: "move", uid: su.uid, x, y });
+  }
+  if (coc) { flash("尸茧要让丧尸走上去才能处置"); return; }
+  sel = null; mode = "idle"; paint(); defaultHint();
+});
+
+// 右键取消
+cv.addEventListener("contextmenu", ev => {
+  ev.preventDefault();
+  sel = null; mode = "idle"; paint(); defaultHint();
+});
+
+// 悬停提示
+// 底部大信息条（常驻）：鼠标停在哪一格就显示那一格上的东西
+function setIdleBar() {
+  const bar = document.getElementById("hoverbar");
+  bar.classList.add("idle");
+  const mobile = window.matchMedia("(max-width:900px)").matches;
+  const name = document.getElementById("hbName");
+  name.textContent = mobile ? "点一格查看详情" : "把鼠标移到格子上";
+  name.style.color = "";
+  document.getElementById("hbSub").textContent = "";
+  document.getElementById("hbStats").innerHTML = mobile
+    ? `<span>点地图上的格子，这里会显示该格的<b>地形</b>或<b>单位</b>详情</span>`
+    : `<span>停在地图任意格子上，这里会显示该格的<b>地形</b>或<b>单位</b>详情</span>`;
+  document.getElementById("hbFill").style.width = "0%";
+  document.getElementById("hbHint").textContent = mobile
+    ? "单指拖动地图 · 双指缩放 · 底栏切换面板"
+    : "拖动地图平移 · 滚轮缩放 · 右上角「适配」一键铺满";
+}
+
+function updateHover(c) {
+  const bar = document.getElementById("hoverbar");
+  if (!S || !c) { setIdleBar(); return; }
+  const [x, y] = c;
+  const u = unitAt(x, y);
+  const coc = cocoonAt(x, y);
+  const su = sel ? byId(sel) : null;
+  const name = document.getElementById("hbName");
+  const sub = document.getElementById("hbSub");
+  const stats = document.getElementById("hbStats");
+  const fill = document.getElementById("hbFill");
+  const hint = document.getElementById("hbHint");
+  bar.classList.remove("idle");
+
+  if (u) {
+    const isZ = u.side === "z";
+    const r = ratio(u.hp, u.max_hp);
+    const col = r > .5 ? (isZ ? "#5ecbe8" : "#ff8f8f") : r > .25 ? "#ffd166" : "#ff6b6b";
+    name.textContent = u.name;
+    name.style.color = u.color;
+    const bits = [];
+    if (u.mother) bits.push("母巢 Lv" + ((S.mother && S.mother.lvl) || 1));
+    else if (isZ) bits.push("Lv" + (u.lvl || 1) + ((u.lvl || 1) >= (S.meta.max_lvl || 3) ? " 满级" : ""));
+    bits.push(u.mother ? "我方核心" : isZ ? "我方" : "人类");
+    if (u.shield > 0) bits.push("护盾 " + u.shield);
+    if (u.aim > 0) {
+      const lock = u.aim_uid ? byId(u.aim_uid) : null;
+      bits.push(lock ? "锁定 " + lock.name : "正在寻找目标");
+    }
+    if (u.bound > 0) bits.push("被菌丝缠住");
+    sub.textContent = bits.join(" · ");
+    stats.innerHTML =
+      `<span>生命 <b style="color:${col}">${u.hp}</b>/${u.max_hp}</span>` +
+      `<span>攻击 <b>${u.atk}</b></span>` +
+      `<span>射程 <b>${u.rng}</b></span>` +
+      `<span>视野 <b>${u.sight}</b></span>` +
+      (isZ && !u.mother ? `<span>本回合已动 <b>${u.acted}</b> 次</span>` : "");
+    fill.style.width = (r * 100) + "%";
+    fill.style.background = col;
+    let tip = "";
+    if (u.mother) tip = S.mother.desc || "";
+    else if (isZ) {
+      const t = (S.meta.ztypes || {})[u.kind] || {};
+      tip = (t.skill ? "技能：" + t.skill : "") + (t.blurb ? "　" + t.blurb : "");
+    } else {
+      tip = u.rng >= 6 ? "远程火力，尽量绕到掩体后贴近它" : "会主动靠过来，先手打掉更安全";
+    }
+    hint.textContent = coc ? tip + "　（它正站在尸茧上：再点一次可处置）" : tip;
+    return;
+  }
+
+  if (coc) {
+    name.textContent = "尸茧";
+    name.style.color = "#ffd166";
+    sub.textContent = "还剩 " + coc.life + " 回合";
+    stats.innerHTML = `<span>让丧尸走上去：可 <b>孵化</b> 新丧尸或 <b>升级</b> 已有的</span>`;
+    fill.style.width = "0%";
+    hint.textContent = "过期会烂在原地";
+    return;
+  }
+
+  const t = terr(S.grid[y][x]);
+  const seen = S.seen[y][x];
+  name.textContent = seen ? t.name : "未探索";
+  name.style.color = seen ? "#c8d6e6" : "#5d6a7c";
+  sub.textContent = seen ? "地形" : "迷雾";
+  const step = su && su.reach ? su.reach.find(cc => cc[0] === x && cc[1] === y) : null;
+  const extra = step ? `<span>移动消耗 <b>${step[2]}</b> ${S.ap_name || "腐能"}</span>` : "";
+  stats.innerHTML = seen
+    ? `<span>基础消耗 <b>${t.cost >= 99 ? "—" : t.cost}</b></span>` +
+      (t.cover ? `<span>掩体减伤 <b>${t.cover}</b></span>` : "") +
+      (t.blockLos ? `<span style="color:#ffb86b">阻挡视线</span>` : "") +
+      (t.healZ ? `<span style="color:#c9a0ff">丧尸每回合回 <b>${t.healZ}</b></span>` : "") +
+      extra
+    : `<span>走进去才知道有什么</span>`;
+  fill.style.width = "0%";
+  hint.textContent = seen ? t.desc : "";
+}
+
+cv.addEventListener("mousemove", ev => {
+  if (!S) return;
+  const c = toCell(ev);
+  const same = (c && hoverCell && c[0] === hoverCell[0] && c[1] === hoverCell[1]) || (!c && !hoverCell);
+  if (same) return;
+  hoverCell = c;
+  draw();
+  updateHover(c);
+});
+cv.addEventListener("mouseleave", () => {
+  hoverCell = null;
+  setIdleBar();
+  draw();
+  defaultHint();
+});
+
+// ── 尸茧面板（丧尸踩上去自动弹出）────────────────────
+let curCocoon = null;          // 正在处置的尸茧坐标，Esc / 取消时要用
+
+function cocoonLater() {
+  const c = curCocoon;
+  curCocoon = null;
+  closeOverlay();
+  if (!c) return;
+  act({ type: "cocoon", choice: "later", x: c.x, y: c.y });
+}
+
+function openCocoon(p) {
+  const coc = cocoonAt(p.x, p.y);
+  if (!coc) return;
+  curCocoon = { x: p.x, y: p.y };
+  const maxLvl = S.meta.max_lvl || 3;
+  const zs = S.units.filter(u => u.side === "z" && !u.mother)
+    .sort((a, b) => a.uid - b.uid);
+  const up = zs.filter(u => (u.lvl || 1) < maxLvl);
+  const stepper = p.uid ? byId(p.uid) : null;
+  // 新丧尸要钻到茧旁边：找一个没墙、没人的邻格
+  const canSpawn = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [-1, -1], [1, 1], [-1, 1]]
+    .some(([dx, dy]) => {
+      const x = p.x + dx, y = p.y + dy;
+      return x >= 0 && y >= 0 && x < S.w && y < S.h && S.grid[y][x] !== 2 && !unitAt(x, y);
+    });
+
+  const sheet = document.getElementById("sheet");
+  openOverlay("cocoon");
+  sheet.innerHTML = `
+    <h1>尸<em>茧</em></h1>
+    <p class="sub">${stepper ? `【${stepper.name}】踩碎了一层干壳，里面还有东西在动。` : "一层半透明的干壳，里面还有东西在动。"}
+      它还能撑 ${coc.life} 回合：孵一只新的丧尸，或者让某只丧尸吞掉它升一级。</p>
+
+    <div class="grp"><label>① 孵化 · 选一只新的（出生在茧旁，Lv${(S.mother && S.mother.hatch_lvl) || 1}）</label>
+      <div class="lib">
+        ${Object.entries(S.meta.ztypes).map(([k, v]) => {
+          const own = (S.unlocked || []).includes(k);
+          const dis = !own || !canSpawn;
+          const lv1 = (v.levels || [])[0] || v;
+          return `<div class="opt ${own ? "own" : "no"}" data-hatch="${k}"
+              style="${dis ? "opacity:.34;pointer-events:none" : "cursor:pointer"}">
+            <b style="color:${v.color}">${v.name}${own ? "" : " 🔒"}</b>
+            <small>HP ${lv1.hp} · 攻 ${lv1.atk} · 射程 ${lv1.rng}<br>
+            ${own ? v.blurb : `母巢 Lv${v.unlock_lvl} 时解锁`}</small>
+          </div>`;
+        }).join("")}
+      </div>
+      ${canSpawn ? "" : `<div class="tag" style="margin-top:8px;color:#ff9f43">茧的周围挤满了，没地方钻出来</div>`}
+    </div>
+
+    <div class="grp"><label>② 升级 · 喂给已有的丧尸（Lv1 → Lv${maxLvl}，数值永久提升）</label>
+      ${up.length ? `<div class="opts">${up.map(u => {
+        const lv = u.lvl || 1;
+        const cur = ((S.meta.ztypes[u.kind] || {}).levels || [])[lv - 1] || u;
+        const nx = ((S.meta.ztypes[u.kind] || {}).levels || [])[lv] || u;
+        return `<div class="opt" data-up="${u.uid}" style="cursor:pointer">
+          <b style="color:${u.color}">${u.name} <span class="tag">Lv${lv} → Lv${lv + 1}</span></b>
+          <small>HP ${u.hp}/${u.max_hp} → ${nx.hp}<br>
+          攻 ${u.atk} → ${nx.atk} · 射程 ${u.rng} → ${nx.rng}</small>
+        </div>`;
+      }).join("")}</div>`
+        : `<div class="tag">所有丧尸都到 Lv${maxLvl} 了，这枚茧只能用来孵新的。</div>`}
+    </div>
+
+    <div style="margin-top:6px; display:flex; gap:10px; align-items:center">
+      <button id="cocLater">稍后再说（茧留在地上）</button>
+      <span class="tag">剩 ${coc.life} 回合，过期就烂掉</span>
+    </div>`;
+
+  sheet.querySelectorAll("[data-hatch]").forEach(n => {
+    n.onclick = () => {
+      const c = curCocoon; curCocoon = null;
+      closeOverlay(); Snd.hatch();
+      act({ type: "cocoon", choice: "hatch", x: c.x, y: c.y, kind: n.dataset.hatch });
+    };
+  });
+  sheet.querySelectorAll("[data-up]").forEach(n => {
+    n.onclick = () => {
+      const c = curCocoon; curCocoon = null;
+      closeOverlay(); Snd.reinforce();
+      act({ type: "cocoon", choice: "upgrade", x: c.x, y: c.y, uid: +n.dataset.up });
+    };
+  });
+  document.getElementById("cocLater").onclick = () => { Snd.click(); cocoonLater(); };
+}
+
+let sheetView = "";     // 当前弹层：menu | start | result | settings | credits | cocoon | pause | confirm | stage | mutation | tut | tutf
+let settingsFrom = "menu";   // 设置页从哪进来的，Esc/返回要回到那
+function openOverlay(view) {
+  sheetView = view || "";
+  document.getElementById("overlay").classList.add("on");
+  closeSheets();     // 弹层出现时收起手机抽屉，避免遮罩叠遮罩
+}
+function closeOverlay() {
+  document.getElementById("overlay").classList.remove("on");
+  sheetView = "";
+}
+const overlayOpen = () => document.getElementById("overlay").classList.contains("on");
+
+// ── 手机抽屉（母巢 / 队伍）────────────────────────────
+const sideEls = { left: document.querySelector(".side.left"), right: document.querySelector(".side.right") };
+let openSheetName = "";
+
+function closeSheets() {
+  openSheetName = "";
+  for (const k in sideEls) if (sideEls[k]) sideEls[k].classList.remove("open");
+  const sc = document.getElementById("mscrim");
+  if (sc) sc.classList.remove("on");
+}
+
+function openSheet(name) {
+  if (openSheetName === name) { closeSheets(); return; }   // 再点一次同一个按钮 = 收起
+  closeSheets();
+  const el = sideEls[name];
+  if (!el) return;
+  openSheetName = name;
+  el.classList.add("open");
+  document.getElementById("mscrim").classList.add("on");
+  Snd.click();
+}
+
+// ── 主菜单 ──────────────────────────────────────────
+async function showMenu(note) {
+  await loadProfile();
+  const p = PROF || { biomass: 0, runs: 0, wins: 0, best_infected: 0, has_run: false, run: null, version: "", build: "" };
+  const run = p.has_run ? p.run : null;
+  const sheet = document.getElementById("sheet");
+
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1>腐<em>潮</em></h1>
+      <div class="menu" style="margin-top:30px">
+        <div class="mi" data-go="new"><b>新游戏</b></div>
+        <div class="mi ${run ? "" : "dis"}" data-go="cont"${run ? "" : ' aria-disabled="true"'}><b>继续游戏</b></div>
+        <div class="mi" data-go="tut"><b>新手教程</b></div>
+        <div class="mi" data-go="cred"><b>制作人名单</b></div>
+        <div class="mi" data-go="set"><b>设置</b></div>
+        <div class="foot">档案 · ${p.runs} 局 ${p.wins} 胜 · 最高感染 ${p.best_infected} · 最深层数 ${p.best_depth || 0}/${(run && run.run_layers) || 10}</div>
+        ${note ? `<div class="foot" style="color:var(--warn)">${note}</div>` : ""}
+      </div>
+      <div class="ver"><span class="dot"></span><b>v${p.version || "dev"}</b><em>· 早期开发版</em><em>build ${p.build || "—"}</em></div>
+    </div>`;
+
+  sheet.querySelectorAll("[data-go]").forEach(n => {
+    n.onclick = () => {
+      const go = n.dataset.go;
+      if (go === "cont") {
+        if (!run) { Snd.err(); return; }
+        Snd.click(); resumeGame(); return;
+      }
+      Snd.click();
+      if (go === "new") showStart();
+      else if (go === "tut") showTutorialIntro();
+      else if (go === "cred") showCredits();
+      else showSettings();
+    };
+  });
+  openOverlay("menu");
+}
+
+// ── 读取存档继续 ────────────────────────────────────
+async function resumeGame() {
+  if (loading) return;
+  loading = true;
+  try {
+    const j = ROT.resume();
+    if (!j.ok) {
+      Snd.err();
+      await showMenu(j.msg || "无法读取存档");
+      return;
+    }
+    S = j.state;
+    sel = null; mode = "idle"; pickUnit = null; hoverCell = null;
+    anims = [];
+    closeOverlay();
+    closeSheets();
+    resize(); fitView(); paint(); defaultHint(); setIdleBar();
+    if (isMobile()) showHintOnce(5000);
+    Snd.turn();
+    if (S.stage_clear) showStageClear();     // 上次是"本层肃清"时退出的，接着弹层间面板
+    else if (S.mutation) showMutation();     // 上次停在突变层
+  } catch (e) {
+    Snd.err();
+    await showMenu("读取存档失败：" + e.message);
+  } finally {
+    loading = false;
+  }
+}
+
+// ── 制作人名单 ──────────────────────────────────────
+function showCredits() {
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1 style="font-size:26px">制作<em>人名单</em></h1>
+      <div class="empty">暂时无法查看</div>
+      <button id="back">← 返回主菜单</button>
+    </div>`;
+  document.getElementById("back").onclick = () => { Snd.click(); showMenu(); };
+  openOverlay("credits");
+}
+
+// ── 设置（音效音量）──────────────────────────────────
+// backTo 省略时返回主菜单；从暂停菜单进来则传 showPause
+function showSettings(backTo) {
+  const sheet = document.getElementById("sheet");
+  const pct = Snd.volPct;
+  const back = typeof backTo === "function" ? backTo : showMenu;
+  const backLabel = typeof backTo === "function" ? "← 返回暂停菜单" : "← 返回主菜单";
+  settingsFrom = typeof backTo === "function" ? "pause" : "menu";
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1 style="font-size:26px">设<em>置</em></h1>
+      <p class="sub">音效由程序实时合成，可随时调节。</p>
+      <div class="grp">
+        <label>音效音量</label>
+        <div class="volrow">
+          <input type="range" class="rng" id="vol" min="0" max="100" step="1"
+                 value="${pct}" style="--p:${pct}%">
+          <b id="volTxt">${pct}</b>
+        </div>
+        <div class="tag" style="margin-top:10px">拖动即可试听　·　游戏中按 M 快速静音</div>
+      </div>
+      <div class="grp">
+        <label>静音</label>
+        <button id="muteBtn">${Snd.muted ? "当前已静音 · 点此恢复" : "当前有声 · 点此静音"}</button>
+      </div>
+      <button id="back">${backLabel}</button>
+    </div>`;
+
+  const inp = document.getElementById("vol");
+  const txt = document.getElementById("volTxt");
+  let lastDemo = 0;
+  const apply = () => {
+    const v = +inp.value;
+    txt.textContent = v;
+    inp.style.setProperty("--p", v + "%");
+    Snd.init();
+    Snd.setVol(v / 100);
+  };
+  inp.oninput = () => {
+    apply();
+    const now = performance.now();
+    if (now - lastDemo > 170) { lastDemo = now; Snd.click(); }   // 拖动时给个实时反馈
+  };
+  inp.onchange = apply;
+
+  document.getElementById("muteBtn").onclick = () => {
+    Snd.init();
+    Snd.muted = !Snd.muted;
+    document.getElementById("btnMute").textContent = Snd.muted ? "🔇" : "♪";
+    document.getElementById("muteBtn").textContent =
+      Snd.muted ? "当前已静音 · 点此恢复" : "当前有声 · 点此静音";
+    if (!Snd.muted) Snd.click();
+  };
+  document.getElementById("back").onclick = () => {
+    Snd.click();
+    back();
+  };
+  openOverlay("settings");
+}
+
+// ── 暂停菜单（游戏内右下角「设置」）────────────────────
+function showPause() {
+  if (!S) return;
+  const m = S.map || { name: "", i: 0, layer: 0, layers: 1 };
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1>暂<em>停</em></h1>
+      <p class="sub">${m.name} ${m.i + 1}-${m.layer + 1} · 第 ${S.turn}/${S.turns_total} 回合
+        · 感染 ${S.infected} 人 · 生物质 ${S.biomass}</p>
+      <div class="menu">
+        <div class="mi" data-go="resume"><b>继续</b></div>
+        <div class="mi" data-go="set"><b>设置</b></div>
+        <div class="mi" data-go="giveup"><b>放弃</b></div>
+        <div class="mi" data-go="save"><b>保存并退出</b></div>
+      </div>
+      <div class="foot">每一步都会自动存档，「保存并退出」只是确保落盘再离开。</div>
+    </div>`;
+  sheet.querySelectorAll("[data-go]").forEach(n => {
+    n.onclick = () => {
+      const go = n.dataset.go;
+      Snd.click();
+      if (go === "resume") closeOverlay();
+      else if (go === "set") showSettings(showPause);
+      else if (go === "giveup") showGiveUp();
+      else saveAndQuit();
+    };
+  });
+  openOverlay("pause");
+}
+
+// 放弃的二次确认
+function showGiveUp() {
+  const m = S.map || { name: "", i: 0, layer: 0, run_layers: 1, depth: 0 };
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1 style="font-size:26px">放弃<em>远征</em></h1>
+      <p class="sub">${m.name} ${m.i + 1}-${m.layer + 1} · 已深入 ${m.depth + 1}/${m.run_layers} 层</p>
+      <div class="empty">确定要直接结束本局吗？<br>
+        <span style="font-size:12px;color:#7c8798">母体与 ${teamCount()} 只丧尸会留在原地。
+        已经吞下的生物质仍会带回档案，但不会计入通关。</span></div>
+      <div style="display:flex;gap:10px">
+        <button class="pri" id="yes" style="flex:1">确定结束</button>
+        <button id="no" style="flex:1">再想想</button>
+      </div>
+    </div>`;
+  document.getElementById("yes").onclick = () => { Snd.err(); closeOverlay(); act({ type: "abandon" }); };
+  document.getElementById("no").onclick = () => { Snd.click(); showPause(); };
+  openOverlay("confirm");
+}
+
+// 保存并退出：显式落盘一次，再回主菜单（主菜单的「继续游戏」能接着打）
+async function saveAndQuit() {
+  const tut = !!(S && S.tut);
+  if (!tut) { try { ROT.save(); } catch (e) { /* 自动存档兜底 */ } }
+  closeOverlay();
+  sel = null; mode = "idle";
+  Snd.click();
+  await showMenu(tut ? "教程不保存进度，远征里才有存档。" : "已保存。随时可以从「继续游戏」接着打。");
+}
+
+// ── 层间过渡（撑满一层的回合数）──────────────────────
+function showStageClear() {
+  if (!S || S.over) return;
+  const m = S.map;
+  const last = (m.depth + 1) >= m.run_layers;
+  const maps = (S.meta && S.meta.maps) || [];
+  const nextMap = (m.layer + 1 < m.layers) ? null : maps[m.i + 1] || null;
+  const nextName = nextMap ? nextMap.name : (m.layer + 1 < m.layers ? m.name : "城市心脏");
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1>${last ? "最后一<em>层</em>" : "本层<em>肃清</em>"}</h1>
+      <p class="sub">${m.name} ${m.i + 1}-${m.layer + 1} · 撑过 ${S.turns_total} 回合
+        · 累计感染 ${S.infected} 人 · 母巢 Lv${(S.mother && S.mother.lvl) || 1}</p>
+      <div class="grp">
+        <label>层间休整</label>
+        <div class="tag" style="line-height:1.85">
+          丧尸回满生命，永久 <b style="color:#ffd166">+1 攻</b> ·
+          <b style="color:#ffd166">+16% 生命上限</b><br>
+          母巢 <b style="color:#b47cff">+4 生命上限</b> 并回满；阵亡缺口由母巢补产（越深，补出的等级越高）
+        </div>
+      </div>
+      <button class="pri" id="next" style="padding:11px 26px;font-size:15px">
+        ${last ? "沉入城市心脏" : "深入下一层 →"}</button>
+      <div class="tag" style="margin-top:11px">
+        ${last ? "最后一层。撑过它，这次远征就赢了。" :
+          nextMap
+            ? `进入新地图：<b style="color:#5ecbe8">${nextMap.name}</b> ${nextMap.sub}`
+            : `前方：${nextName} · 第 ${m.layer + 2}/${m.layers} 层`}
+      </div>
+    </div>`;
+  document.getElementById("next").onclick = () => {
+    Snd.turn(); closeOverlay();
+    act({ type: "advance" });
+  };
+  openOverlay("stage");
+}
+
+// ── 突变层（层间事件）────────────────────────────────
+// 清完一层下潜时随机触发：不打架，只花本局生物质买三项随机突变。
+function mutationDone() {
+  closeOverlay();
+  act({ type: "mutation_done" });
+}
+
+function showMutation() {
+  if (!S || !S.mutation || S.over) return;
+  const mu = S.mutation;
+  const maxLvl = S.meta.max_lvl || 3;
+  const zs = S.units.filter(u => u.side === "z" && !u.mother).sort((a, b) => a.uid - b.uid);
+  const sheet = document.getElementById("sheet");
+
+  const cards = mu.options.map(o => {
+    const afford = S.biomass >= o.cost;
+    let pick = "";
+    let usable = true;
+    if (o.kind === "upgrade") {
+      const fits = zs.filter(u => u.lvl + o.value <= maxLvl);
+      usable = fits.length > 0;
+      if (usable) {
+        pick = `<select id="mutUp">` + fits.map(u =>
+          `<option value="${u.uid}">${u.name} Lv${u.lvl} → Lv${u.lvl + o.value}</option>`
+        ).join("") + `</select>`;
+      } else {
+        pick = `<div class="md" style="color:#ff9f43;min-height:0">没有能再升 ${o.value} 级的丧尸</div>`;
+      }
+    }
+    const dis = o.bought || !afford || !usable;
+    return `<div class="opt${o.bought ? " bought" : ""}">
+      <div class="mt">${o.title}</div>
+      <div class="md">${o.desc}</div>
+      ${pick}
+      <div class="mc">标价 ${o.cost} 生物质</div>
+      <button class="mb pri" data-mut="${o.id}" ${dis ? "disabled" : ""}>
+        ${o.bought ? "已获取" : !usable ? "无法使用" : afford ? "获取" : "生物质不足"}</button>
+    </div>`;
+  }).join("");
+
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1>突<em>变</em></h1>
+      <p class="sub">${mu.from} 肃清后 · 本局生物质 <b style="color:#ffd166">${S.biomass}</b>
+        · 三项突变各能拿一次，数值越高标价越贵</p>
+      <div class="mut">${cards}</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:20px;flex-wrap:wrap">
+        <button class="pri" id="mutDone" style="padding:10px 22px">结束突变，继续深入 →</button>
+        <span class="tag">下一站：${mu.next.name} ${mu.next.layer}/${mu.next.layers} 层</span>
+      </div>
+    </div>`;
+
+  sheet.querySelectorAll("[data-mut]").forEach(n => {
+    n.onclick = () => {
+      const o = mu.options.find(x => x.id === n.dataset.mut);
+      if (!o) return;
+      const uidEl = document.getElementById("mutUp");
+      const uid = o.kind === "upgrade" && uidEl ? +uidEl.value : undefined;
+      Snd.click();
+      closeOverlay();
+      act({ type: "mutate", id: o.id, uid });
+    };
+  });
+  document.getElementById("mutDone").onclick = () => { Snd.click(); mutationDone(); };
+  openOverlay("mutation");
+}
+
+// ── 开局 / 结算 ─────────────────────────────────────
+// ── 新手教程 ────────────────────────────────────────
+// 四节固定小课由引擎铺图（TUT_LEVELS），这里只负责入口、提示卡和通关/失败面板。
+function showTutorialIntro() {
+  const L = ROT.TUT_LEVELS || [];
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1 style="font-size:28px">新手<em>教程</em></h1>
+      <p class="sub">四节小课，每节只教一件事，做到就自动判过。走一遍再开远征，不至于一进去就发懵。</p>
+      <div class="notes">
+        ${L.map((l) => `<b>${l.name}</b><span>${l.goalText}</span>`).join("")}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="pri" id="go" style="padding:10px 22px">开始第 1 课 →</button>
+        <button id="back">← 主菜单</button>
+      </div>
+    </div>`;
+  document.getElementById("go").onclick = () => { Snd.click(); newGame({ tut: 0 }); };
+  document.getElementById("back").onclick = () => { Snd.click(); showMenu(); };
+  openOverlay("tut");
+}
+
+// ── 新手指导 ────────────────────────────────────────
+// 落地时是一条浮在画面下方的对话框；点「确定」后等比缩小 + 平移到左上角，
+// 换成一块小任务框。目标一达成就自动翻课：下方对话框直接弹出下一课的任务，
+// 不再需要点「下一课」按钮（按钮只在等不住时用来跳过那段停留）。
+let tutUi = { i: -1, wide: true, adv: false };
+let tutFlight = 0;          // 动画世代号，换课时作废还没跑完的定时器
+let tutAdvTimer = 0;        // 达成后自动翻课的定时器
+const TUT_ADV_MS = 1100;    // 达成后停多久再翻课（留出看"已完成"和听提示音的时间）
+
+function tutAdvClear() {
+  if (tutAdvTimer) { clearTimeout(tutAdvTimer); tutAdvTimer = 0; }
+}
+
+function renderTut() {
+  const box = document.getElementById("tutBox");
+  if (!box) return;
+  const t = S && S.tut;
+
+  if (!t) {
+    if (tutUi.i !== -1) {
+      tutFlight++; tutAdvClear();
+      box.classList.remove("on", "docked", "done");
+      box.style.transition = "none";
+      box.style.transform = "none";
+      box.style.opacity = "1";
+      tutUi = { i: -1, wide: true, adv: false };
+    }
+    return;
+  }
+
+  // 换了一课：整块重置回"展开在下方"的形态
+  if (tutUi.i !== t.i) {
+    const hadLesson = tutUi.i >= 0;                  // 不是第一次进课
+    const wasDocked = hadLesson && !tutUi.wide;      // 上一课已经收在左上角
+    const gen = ++tutFlight; tutAdvClear();
+    tutUi = { i: t.i, wide: true, adv: false };
+    box.classList.remove("docked", "done");
+    box.classList.add("on");
+    box.style.transition = "none";
+    box.style.transform = "none";
+    box.style.opacity = "1";
+    const title = t.name.replace(/^第\s*\d+\s*课\s*·\s*/, "");
+    document.getElementById("tbK").textContent = `新手教程 · 第 ${t.i + 1} / ${t.n} 课`;
+    document.getElementById("tbN").textContent = title;
+    document.getElementById("tbG").textContent = `目标：${t.goal_text}`;
+    document.getElementById("tbH").textContent = t.hint;
+    document.getElementById("tmK").textContent = `新手任务 · ${t.i + 1}/${t.n}`;
+    document.getElementById("tmN").textContent = title;
+    document.getElementById("tmG").textContent = t.goal_text;
+    document.getElementById("tbOk").onclick = () => tutMinimize();
+    document.getElementById("tmSt").onclick = () => tutNext();
+    // 从左上角长回下方：上一课是"缩下去"，这一课反着飞，读起来才是一件事的两个方向
+    if (wasDocked) tutRise(gen);
+    else if (hadLesson) {
+      // 玩家没点确定、一直对着宽版就把目标做完了：这里只换文案，淡一下免得像闪屏
+      box.style.transition = "none";
+      box.style.opacity = "0";
+      void box.offsetWidth;
+      box.style.transition = "opacity .2s ease-out";
+      box.style.opacity = "1";
+      setTimeout(() => {
+        if (gen !== tutFlight) return;
+        box.style.transition = "none";
+        box.style.opacity = "1";
+      }, 240);
+    }
+  }
+
+  // 完成态是随时变的，单独同步
+  box.classList.toggle("done", !!t.done);
+
+  // 目标一达成就自动往下走，不给"再点一下按钮"这种事
+  if (t.done && !tutUi.adv) {
+    tutUi.adv = true;
+    Snd.win();
+    tutAdvClear();
+    const course = t.i;
+    const tick = () => {
+      tutAdvTimer = 0;
+      if (!S || !S.tut || S.tut.i !== course || !S.tut.done) return;
+      // 局内面板开着（暂停 / 尸茧 / 确认）就先等它关掉，别把玩家的面板顶了
+      if (sheetView === "pause" || sheetView === "cocoon" || sheetView === "confirm") {
+        tutAdvTimer = setTimeout(tick, 400);
+        return;
+      }
+      // 已经回主菜单 / 进了结算面板，这一课就到此为止，别自己往下翻
+      if (sheetView) return;
+      tutNext();
+    };
+    tutAdvTimer = setTimeout(tick, TUT_ADV_MS);
+  }
+
+  const st = document.getElementById("tmSt");
+  st.className = "tbst" + (t.done ? " done" : "");
+  st.textContent = !t.done ? "进行中"
+    : t.last ? "✓ 已完成 · 正在收尾…"
+    : "✓ 已完成 · 进入下一课…";
+  document.getElementById("tbOk").textContent = t.done ? "继续" : "确定";
+}
+
+// 下方的宽对话框 → 左上角的小任务框
+// 做法：先量好宽版与收起版各自的矩形，再只对 transform 做过渡（平移 + 等比缩放），
+// 到站后快速淡出、换成迷你布局、淡入。等比缩放保证文字在飞行途中不被拉变形。
+function tutMinimize() {
+  const box = document.getElementById("tutBox");
+  if (!box || !box.classList.contains("on") || box.classList.contains("docked")) return;
+  if (!tutUi.wide) return;
+  tutUi.wide = false;
+  Snd.click();
+
+  // 上一条 ascent 动画可能还在跑（玩家手快），先把它钉到站再量，否则量到的是半路的尺寸
+  if (box.style.transform && box.style.transform !== "none") {
+    tutFlight++;
+    box.style.transition = "none";
+    box.style.transform = "none";
+    void box.offsetWidth;
+  }
+
+  const a = box.getBoundingClientRect();      // 起飞：宽版
+
+  // 偷量一下到站位置（量完立刻还原，期间不可见所以不会闪）
+  box.style.visibility = "hidden";
+  box.classList.add("docked");
+  const b = box.getBoundingClientRect();
+  box.classList.remove("docked");
+  box.style.visibility = "";
+
+  const k = b.width / a.width;
+  const dx = (b.left + b.width / 2) - (a.left + a.width / 2);
+  const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
+
+  const id = ++tutFlight;
+
+  // 起点：原地、原尺寸
+  box.style.transition = "none";
+  box.style.transformOrigin = "center center";
+  box.style.transform = "none";
+  box.style.opacity = "1";
+  void box.offsetWidth;
+
+  // 飞行
+  box.style.transition = "transform .46s cubic-bezier(.22,.9,.26,1)";
+  box.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`;
+
+  // 到站：换布局。淡出 → 切 docked → 淡入，末了把内联样式钉死，
+  // 不依赖过渡自己走完（无头/降帧环境下 transition 可能停在起始值）。
+  function land() {
+    if (id !== tutFlight) return;
+    box.style.transition = "none";
+    box.style.transform = "none";
+    box.style.opacity = "0";
+    box.classList.add("docked");
+    void box.offsetWidth;
+    box.style.transition = "opacity .16s ease-out";
+    box.style.opacity = "1";
+    setTimeout(() => {
+      if (id !== tutFlight) return;
+      box.style.transition = "none";
+      box.style.opacity = "1";
+    }, 200);
+  }
+
+  const onEnd = (ev) => {
+    if (ev.target !== box || ev.propertyName !== "transform") return;
+    box.removeEventListener("transitionend", onEnd);
+    land();
+  };
+  box.addEventListener("transitionend", onEnd);
+  setTimeout(() => { box.removeEventListener("transitionend", onEnd); land(); }, 560);
+}
+
+// 上一课收在左上角，下一课要从那儿"长"回画面下方（tutMinimize 的反向）
+// 同一个手法：量好收起态与宽版两个矩形，只过渡 transform，等比缩放 + 平移。
+function tutRise(gen) {
+  const box = document.getElementById("tutBox");
+  if (!box) return;
+  box.style.visibility = "hidden";
+  box.classList.add("docked");
+  const a = box.getBoundingClientRect();     // 起飞：左上角小框
+  box.classList.remove("docked");
+  const b = box.getBoundingClientRect();     // 到站：下方宽框
+  box.style.visibility = "";
+
+  const k = a.width / b.width;
+  const dx = (a.left + a.width / 2) - (b.left + b.width / 2);
+  const dy = (a.top + a.height / 2) - (b.top + b.height / 2);
+
+  box.style.transition = "none";
+  box.style.transformOrigin = "center center";
+  box.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`;
+  box.style.opacity = "0";          // 起点先透明：小框的文字字号和宽版不是一套，淡入可以把这层跳变盖掉
+  void box.offsetWidth;
+  box.style.transition = "transform .44s cubic-bezier(.22,.9,.26,1), opacity .16s ease-out";
+  box.style.transform = "none";
+  box.style.opacity = "1";
+  setTimeout(() => {
+    if (gen !== tutFlight) return;
+    box.style.transition = "none";
+    box.style.transform = "none";
+    box.style.opacity = "1";
+  }, 500);
+}
+
+function tutNext() {
+  const t = S && S.tut;
+  if (!t || !t.done) return;
+  tutFlight++; tutAdvClear();
+  Snd.click();
+  if (t.last) { showTutFinish(); return; }
+  newGame({ tut: t.i + 1 });
+}
+
+function showTutFinish() {
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1 style="font-size:26px">教程<em>结束</em></h1>
+      <p class="sub">四节课都过了。真正的远征里还有这些东西，边打边学就行。</p>
+      <div class="notes">
+        <b>母巢升级</b><span>击杀人类攒经验 · 升级产感染物、解锁新丧尸形态</span>
+        <b>感染物</b><span>4 档稀有度 · 越深越可能出稀有 / 传说 · 成对凑连携</span>
+        <b>远征</b><span>5 张地图 × 2 层 · 每层撑过回合数即下潜 · 母巢倒下即结束</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="pri" id="go" style="padding:10px 22px">开始真正的远征 →</button>
+        <button id="back">← 主菜单</button>
+      </div>
+    </div>`;
+  document.getElementById("go").onclick = () => { Snd.click(); showStart(); };
+  document.getElementById("back").onclick = () => { Snd.click(); showMenu(); };
+  openOverlay("tutf");
+}
+
+function showTutFail() {
+  const t = (S && S.tut) || { i: 0, name: "教程" };
+  const gave = !!(S && S.abandoned);
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="mn">
+      <h1 style="font-size:24px">${gave ? "离开<em>教程</em>" : "母巢<em>倒下</em>了"}</h1>
+      <p class="sub">${gave ? "你放弃了这一课。" : "教程里规则也一样：母巢被打死就重来。"}这一课是「${t.name.replace(/^第\s*\d+\s*课\s*·\s*/, "")}」。</p>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="pri" id="again" style="padding:10px 22px">重打这一课</button>
+        <button id="back">← 主菜单</button>
+      </div>
+    </div>`;
+  document.getElementById("again").onclick = () => { Snd.click(); newGame({ tut: t.i }); };
+  document.getElementById("back").onclick = () => { Snd.click(); showMenu(); };
+  openOverlay("tutf");
+}
+
+// ── 开局向导：一次只问一组，选完再翻页 ────────────────
+async function showStart() {
+  await loadProfile();
+  const sheet = document.getElementById("sheet");
+  const M = S.meta.mothers, D = S.meta.diffs, Z = S.meta.ztypes || {};
+  const TOTAL = 3;
+  let step = 0, mSel = "", dSel = "", seedVal = "";
+
+  const bar = () => `<div class="bar">${Array.from({ length: TOTAL },
+    (_, i) => `<i class="${i <= step ? "on" : ""}"></i>`).join("")}</div>`;
+  const kick = (t) => `<div class="kick">第 ${step + 1} 步 / 共 ${TOTAL} 步 · ${t}</div>`;
+
+  function render() {
+    if (step === 0) {
+      sheet.innerHTML = `
+        <div class="wiz">${bar()}${kick("选母体")}
+          <h2>你是一团什么样的菌？</h2>
+          <p class="lead">母体不能移动，是这局的核心与败北条件。三种母体技能侧重不同，选一个顺手的。</p>
+          <div class="opts">
+            ${Object.entries(M).map(([k, v]) => `
+              <div class="opt${k === mSel ? " on" : ""}" data-m="${k}">
+                <b>${v.name}</b>
+                <small>HP ${v.hp} · 技能「${v.skill}」（CD ${v.cd}）<br>${v.desc}</small>
+              </div>`).join("")}
+          </div>
+          <div class="btns">
+            <button id="back">← 主菜单</button>
+            <button id="tutLink">新手教程</button><span class="grow"></span>
+            <button class="pri" id="next"${mSel ? "" : " disabled"}>下一步：难度 →</button>
+          </div>
+        </div>`;
+    } else if (step === 1) {
+      sheet.innerHTML = `
+        <div class="wiz">${bar()}${kick("选难度")}
+          <h2>这次的城市有多难啃？</h2>
+          <p class="lead">难度只影响人类数量与质量、每层回合数、开局腐能。母巢的血量和规则都一样。</p>
+          <div class="opts">
+            ${Object.entries(D).map(([k, v]) => `
+              <div class="opt${k === dSel ? " on" : ""}" data-d="${k}">
+                <b>${v.label}</b>
+                <small>每层 ${v.turns} 回合 · 开局 ${v.ap} 腐能<br>
+                  起手 ${v.start_z} 只丧尸 · 场上 ${v.start_h} 名人类</small>
+              </div>`).join("")}
+          </div>
+          <div class="btns">
+            <button id="prev">← 上一步</button><span class="grow"></span>
+            <button class="pri" id="next"${dSel ? "" : " disabled"}>下一步：确认 →</button>
+          </div>
+        </div>`;
+    } else {
+      const own = Object.entries(Z).filter(([, v]) => (v.unlock_lvl || 0) === 0);
+      const rest = Object.entries(Z).filter(([, v]) => (v.unlock_lvl || 0) > 0)
+        .sort((a, b) => a[1].unlock_lvl - b[1].unlock_lvl);
+      sheet.innerHTML = `
+        <div class="wiz">${bar()}${kick("确认")}
+          <h2>准备下潜</h2>
+          <p class="lead">开局只有少数几种丧尸形态，其余靠局内把母巢养起来解锁，不用在局外买。</p>
+          <div class="sum">
+            <div><small>母体</small><b>${M[mSel].name}</b></div>
+            <div><small>难度</small><b>${D[dSel].label}</b></div>
+            <div><small>远征</small><b>${(S.meta.maps || []).length} 地图 · ${S.meta.run_layers || 10} 层</b></div>
+          </div>
+          <div class="chips">
+            ${own.map(([, v]) => `<span class="own">${v.name} · 开局可用</span>`).join("")}
+            ${rest.map(([, v]) => `<span>${v.name} · 母巢 Lv${v.unlock_lvl}</span>`).join("")}
+          </div>
+          <p class="lead" style="margin-bottom:10px">
+            击杀人类掉【尸茧】，丧尸走上去可孵化新的或吞掉升级；母巢升级产出感染物，地图上也会散落发光晶体。
+          </p>
+          <div class="grp"><label>种子（留空则随机）</label>
+            <input class="seedin" id="seedIn" placeholder="例如 20261124" inputmode="numeric" value="${seedVal}">
+          </div>
+          <div class="btns">
+            <button id="prev">← 上一步</button><span class="grow"></span>
+            <button class="pri" id="go" style="padding:11px 26px;font-size:15px">开始感染</button>
+          </div>
+        </div>`;
+    }
+    bind();
+  }
+
+  function bind() {
+    sheet.querySelectorAll("[data-m]").forEach(n => n.onclick = () => {
+      mSel = n.dataset.m; Snd.click();
+      sheet.querySelectorAll("[data-m]").forEach(o => o.classList.toggle("on", o === n));
+      const b = document.getElementById("next"); if (b) b.disabled = false;
+    });
+    sheet.querySelectorAll("[data-d]").forEach(n => n.onclick = () => {
+      dSel = n.dataset.d; Snd.click();
+      sheet.querySelectorAll("[data-d]").forEach(o => o.classList.toggle("on", o === n));
+      const b = document.getElementById("next"); if (b) b.disabled = false;
+    });
+    const bk = document.getElementById("back");
+    if (bk) bk.onclick = () => { Snd.click(); showMenu(); };
+    const tl = document.getElementById("tutLink");
+    if (tl) tl.onclick = () => { Snd.click(); showTutorialIntro(); };
+    const pv = document.getElementById("prev");
+    if (pv) pv.onclick = () => { Snd.click(); step -= 1; render(); };
+    const nx = document.getElementById("next");
+    if (nx) nx.onclick = () => { Snd.click(); step += 1; render(); };
+    const sd = document.getElementById("seedIn");
+    if (sd) sd.oninput = () => { seedVal = sd.value; };
+    const go = document.getElementById("go");
+    if (go) go.onclick = () => newGame({ mother: mSel, diff: dSel, seed: seedVal.trim() });
+  }
+
+  render();
+  openOverlay("start");
+}
+
+async function showResult() {
+  const win = S.result === "win";
+  const gave = !win && S.abandoned;
+  const m = S.map || { name: "", i: 0, layer: 0, depth: 0, run_layers: 1 };
+  const title = win ? "城市沉没" : (gave ? "主动放弃" : "母体崩解");
+  await loadProfile();
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="finish">
+      <h1 style="font-size:34px;color:${win ? "#8ef0bb" : "#ff6b6b"}">${title}</h1>
+      <div class="big">
+        ${m.name} ${m.i + 1}-${m.layer + 1} · 深入 ${m.depth + 1}/${m.run_layers} 层
+        · 感染 ${S.infected} 人
+      </div>
+      <div class="big">
+        难度「${S.difficulty_label}」· 种子 ${S.seed}
+      </div>
+      <div class="big">
+        母巢 Lv${(S.mother && S.mother.lvl) || 1} · 感染物 ${(S.relics || []).length} 枚
+        · 孵化等级 Lv${(S.mother && S.mother.hatch_lvl) || 1}
+        ${(S.pairs_active || []).length ? `· 连携 ${S.pairs_active.length} 组` : ""}
+      </div>
+      <div class="gain">本局带入 ${S.gained} 生物质　→　累计 ${PROF ? PROF.biomass : "?"}</div>
+      <div class="big" style="margin-bottom:20px">
+        ${PROF ? `档案：${PROF.runs} 局 · ${PROF.wins} 胜 · 最高感染 ${PROF.best_infected} · 最深层数 ${PROF.best_depth || 0}` : ""}
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+        <button class="pri" id="again" style="padding:11px 26px;font-size:15px">再来一局</button>
+        <button id="toMenu">返回主菜单</button>
+      </div>
+      <div class="tag" style="margin-top:12px">
+        下一局开局时会显示完整的丧尸解锁表：谁的形态在母巢几级解锁，一目了然。</div>
+    </div>`;
+  document.getElementById("again").onclick = () => showStart();
+  document.getElementById("toMenu").onclick = () => showMenu();
+  openOverlay("result");
+}
+
+// ── 键盘操控 ────────────────────────────────────────
+const DIRS = {
+  KeyW: [0, -1], KeyA: [-1, 0], KeyS: [0, 1], KeyD: [1, 0],
+  ArrowUp: [0, -1], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowRight: [1, 0]
+};
+
+document.addEventListener("keydown", e => {
+  if (e.code === "KeyM") {
+    Snd.muted = !Snd.muted;
+    document.getElementById("btnMute").textContent = Snd.muted ? "🔇" : "♪";
+    if (!Snd.muted) Snd.click();
+    return;
+  }
+  if (overlayOpen()) {
+    if (e.code === "Escape") {
+      // 二级页回到上级；尸茧面板视为"稍后再说"；结算/层间面板不响应 Esc
+      if (sheetView === "settings") (settingsFrom === "pause" ? showPause() : showMenu());
+      else if (sheetView === "credits" || sheetView === "start" || sheetView === "tut") showMenu();
+      else if (sheetView === "cocoon") cocoonLater();
+      else if (sheetView === "mutation") mutationDone();
+      else if (sheetView === "pause") closeOverlay();
+      else if (sheetView === "confirm") showPause();
+    }
+    return;
+  }
+  if (!S || S.over) return;
+  const code = e.code;
+
+  if (code === "Space") { e.preventDefault(); Snd.turn(); act({ type: "end_turn" }); return; }
+  if (code === "Escape") {
+    e.preventDefault();
+    if (mode === "pick_scan") { mode = "idle"; paint(); defaultHint(); return; }
+    showPause(); return;
+  }
+  if (code === "KeyQ") { e.preventDefault(); act({ type: "mother" }); return; }
+  if (code === "KeyF") {
+    e.preventDefault();
+    const u = sel ? byId(sel) : null;
+    if (u) onSkill(u); else { Snd.err(); flash("先选中一个丧尸"); }
+    return;
+  }
+  if (code === "Tab") {
+    e.preventDefault();
+    const mine = S.units.filter(u => u.side === "z")
+      .sort((a, b) => (a.mother ? 1 : 0) - (b.mother ? 1 : 0) || a.uid - b.uid);
+    if (!mine.length) return;
+    const i = mine.findIndex(u => u.uid === sel);
+    sel = mine[(i + 1) % mine.length].uid;
+    Snd.click(); paint(); defaultHint(); return;
+  }
+  const dm = /^Digit([1-9])$/.exec(code);
+  if (dm) {
+    const mine = S.units.filter(u => u.side === "z")
+      .sort((a, b) => (a.mother ? 1 : 0) - (b.mother ? 1 : 0) || a.uid - b.uid);
+    const u = mine[+dm[1] - 1];
+    if (u) { sel = u.uid; Snd.click(); paint(); defaultHint(); }
+    return;
+  }
+  if (DIRS[code]) {
+    e.preventDefault();
+    const u = sel ? byId(sel) : null;
+    if (!u || u.mother || !u.reach) { Snd.err(); flash("先按 Tab 或数字键选一个丧尸"); return; }
+    const [dx, dy] = DIRS[code];
+    const tx = u.x + dx, ty = u.y + dy;
+    if (u.reach.some(c => c[0] === tx && c[1] === ty)) {
+      act({ type: "move", uid: u.uid, x: tx, y: ty });
+    } else {
+      Snd.err();
+    }
+    return;
+  }
+});
+
+// ── 启动 ────────────────────────────────────────────
+document.getElementById("btnEnd").onclick = () => act({ type: "end_turn" });
+document.getElementById("btnMenu").onclick = () => { Snd.click(); showPause(); };
+// 手机端：底栏 / 抽屉
+document.getElementById("mscrim").onclick = () => closeSheets();
+document.querySelectorAll("#mbar [data-sheet]").forEach(n => {
+  n.onclick = () => openSheet(n.dataset.sheet);
+});
+document.getElementById("mEnd").onclick = () => act({ type: "end_turn" });
+document.getElementById("mMenu").onclick = () => { Snd.click(); closeSheets(); showPause(); };
+document.getElementById("mSkill").onclick = () => {
+  const u = sel ? byId(sel) : null;
+  if (!u) { Snd.err(); flash("先点一只丧尸"); return; }
+  onSkill(u);
+};
+document.getElementById("btnMute").onclick = () => {
+  Snd.init(); Snd.muted = !Snd.muted;
+  document.getElementById("btnMute").textContent = Snd.muted ? "🔇" : "♪";
+};
+window.addEventListener("resize", () => {
+  if (!S) return;
+  if (!window.matchMedia("(max-width:900px)").matches) closeSheets();
+  resize(); clampCam(); draw(); updateZoomLabel();
+});
+
+// 横竖屏切换：重新适配一次，别让镜头停在屏幕外
+window.addEventListener("orientationchange", () => {
+  if (!S) return;
+  setTimeout(() => {
+    resize();
+    if (isMobile()) fitView(); else clampCam();
+    draw();
+  }, 300);
+});
+
+(async function boot() {
+  const q = new URLSearchParams(location.search);
+  S = ROT.state();          // 规则在浏览器里跑，不再请求服务器
+  await loadProfile();
+  if (q.get("seed") || q.get("mother") || q.get("diff")) {
+    await newGame({
+      mother: q.get("mother") || "brood",
+      diff: q.get("diff") || "normal",
+      seed: q.get("seed") || ""
+    });
+  } else {
+    resize(); fitView(); paint();
+    await showMenu();
+  }
+})();
+</script>
+</body>
+</html>
